@@ -41,7 +41,7 @@ export default async function handler(req, res) {
     // ✅ Convert Date to Firestore Timestamp
     if (date && date !== "all") {
       const parsedDate = new Date(date);
-      if (!isNaN(parsedDate)) {
+      if (!isNaN(parsedDate.getTime())) {
         filters.push(where("date", "==", Timestamp.fromDate(parsedDate)));
       } else {
         console.error("Invalid date format received:", date);
@@ -69,21 +69,25 @@ export default async function handler(req, res) {
       filters.push(where("players", "array-contains", userId));
     }
 
+    // ✅ Log the filters before running the query
+    log("Filters before Firestore Query:", filters.map(f => f.fieldPath?.fieldName || f));
+
     // Apply filters
     if (filters.length > 0) {
       matchesQuery = query(matchesQuery, ...filters);
     }
 
-    log("Final Firestore query built", { filters });
-
     // Execute Firestore Query
     const snapshot = await getDocs(matchesQuery);
-    const matches = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      date: doc.data().date.toDate(), // Convert Firestore Timestamp to JS Date
-      createdAt: doc.data().createdAt.toDate(),
-    }));
+    const matches = snapshot.docs.map((doc) => {
+      const matchData = doc.data();
+      return {
+        id: doc.id,
+        ...matchData,
+        date: matchData.date.toDate(), // Convert Firestore Timestamp to JS Date
+        createdAt: matchData.createdAt.toDate(),
+      };
+    });
 
     log("Fetched matches from Firestore", { count: matches.length });
 
