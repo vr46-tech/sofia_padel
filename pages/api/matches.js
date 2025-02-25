@@ -1,8 +1,8 @@
-import { VercelRequest, VercelResponse } from '@vercel/node';
+import type { NextApiRequest, NextApiResponse } from 'next';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 
-// Load Firebase credentials from environment variables.
+// Firebase Config
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -12,31 +12,26 @@ const firebaseConfig = {
   appId: process.env.FIREBASE_APP_ID
 };
 
-// Initialize Firebase & Firestore
+// Initialize Firebase
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// Debug mode toggle
+// Debug Mode
 const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
 
-// Utility function for logging
+// Logging Function
 const log = (message: string, data?: any) => {
-  if (DEBUG_MODE) {
-    console.log(`[DEBUG] ${message}`, data || '');
-  }
+  if (DEBUG_MODE) console.log(`[DEBUG] ${message}`, data || '');
 };
 
-export default async (req: VercelRequest, res: VercelResponse) => {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   try {
     log('Incoming request', { query: req.query });
 
-    // Extract query parameters
     const { date, skillLevel, status, location } = req.query;
-
     let matchesQuery = collection(db, 'matches');
     let filters = [];
 
-    // Apply filters
     if (date && date !== 'all') {
       const parsedDate = new Date(date as string);
       log('Filtering by date', parsedDate);
@@ -61,7 +56,6 @@ export default async (req: VercelRequest, res: VercelResponse) => {
 
     log('Final Firestore query built', { filters });
 
-    // Fetch matches from Firestore
     const snapshot = await getDocs(matchesQuery);
     const matches = snapshot.docs.map(doc => ({
       id: doc.id,
@@ -79,4 +73,4 @@ export default async (req: VercelRequest, res: VercelResponse) => {
       details: error.message
     });
   }
-};
+}
