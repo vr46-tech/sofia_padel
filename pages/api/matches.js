@@ -1,8 +1,7 @@
-import type { NextApiRequest, NextApiResponse } from 'next';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
 
-// Firebase Config
+// Firebase Config (Ensure these are set in your Vercel Environment Variables)
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -16,15 +15,22 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// Debug Mode
+// Enable debug mode from environment variable
 const DEBUG_MODE = process.env.DEBUG_MODE === 'true';
 
 // Logging Function
-const log = (message: string, data?: any) => {
-  if (DEBUG_MODE) console.log(`[DEBUG] ${message}`, data || '');
-};
+function log(message, data) {
+  if (DEBUG_MODE) {
+    console.log(`[DEBUG] ${message}`, data || '');
+  }
+}
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+// Main API Handler
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: "Method Not Allowed" });
+  }
+
   try {
     log('Incoming request', { query: req.query });
 
@@ -33,21 +39,21 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     let filters = [];
 
     if (date && date !== 'all') {
-      const parsedDate = new Date(date as string);
+      const parsedDate = new Date(date);
       log('Filtering by date', parsedDate);
       filters.push(where('date', '==', parsedDate));
     }
     if (skillLevel && skillLevel !== 'all') {
       log('Filtering by skill level', skillLevel);
-      filters.push(where('skillLevel', '==', skillLevel as string));
+      filters.push(where('skillLevel', '==', skillLevel));
     }
     if (status && status !== 'all') {
       log('Filtering by status', status);
-      filters.push(where('status', '==', status as string));
+      filters.push(where('status', '==', status));
     }
     if (location && location !== 'All Locations') {
       log('Filtering by location', location);
-      filters.push(where('location', '==', location as string));
+      filters.push(where('location', '==', location));
     }
 
     if (filters.length > 0) {
@@ -64,11 +70,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     log('Fetched matches from Firestore', { count: matches.length });
 
-    res.status(200).json({ matches });
+    return res.status(200).json({ matches });
   } catch (error) {
     console.error('[ERROR] Fetching matches failed:', error);
 
-    res.status(500).json({
+    return res.status(500).json({
       error: 'Failed to fetch matches',
       details: error.message
     });
