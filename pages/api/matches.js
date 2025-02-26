@@ -24,7 +24,7 @@ export default async function handler(req, res) {
     console.log("🔹 [LOG] Incoming GET Request - Query Params:", req.query);
 
     const { date, skillLevel, status, location, userId } = req.query;
-    let matchesQuery = collection(db, "matches");
+    let matchesRef = collection(db, "matches");
     let filters = [];
 
     // ✅ Convert Date to Firestore Timestamp
@@ -62,20 +62,16 @@ export default async function handler(req, res) {
       console.log("✅ [LOG] Player filter applied:", userId);
     }
 
-    // ✅ Log Firestore Filters Before Query Execution
-    if (filters.length === 0) {
-      console.log("⚠️ [LOG] No filters applied. Fetching all matches.");
-    } else {
-      console.log("🔍 [LOG] Filters applied:", filters.map(f => f.fieldPath?.fieldName || f));
-    }
-
-    // Apply filters
+    // ✅ Apply Filters to Firestore Query
     if (filters.length > 0) {
-      matchesQuery = query(matchesQuery, ...filters);
+      console.log("🔍 [LOG] Filters applied:", filters.map(f => f.fieldPath?.fieldName || f));
+      matchesRef = query(matchesRef, ...filters);  // 🛠️ Fix: Apply filters to query
+    } else {
+      console.log("⚠️ [LOG] No filters applied. Fetching all matches.");
     }
 
     // Execute Firestore Query
-    const snapshot = await getDocs(matchesQuery);
+    const snapshot = await getDocs(matchesRef);
     const matches = snapshot.docs.map((doc) => {
       const matchData = doc.data();
       return {
