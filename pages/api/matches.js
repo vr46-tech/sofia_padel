@@ -87,8 +87,8 @@ export default async function handler(req, res) {
       return {
         id: doc.id,
         ...matchData,
-        date: matchData.date.toDate(), // Convert Firestore Timestamp to JS Date
-        createdAt: matchData.createdAt.toDate(),
+        date: matchData.date?.toDate ? matchData.date.toDate() : matchData.date, // Ensure proper conversion
+        createdAt: matchData.createdAt?.toDate ? matchData.createdAt.toDate() : matchData.createdAt,
       };
     });
 
