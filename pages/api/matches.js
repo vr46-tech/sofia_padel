@@ -21,9 +21,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log("🔹 [LOG] Incoming GET Request - Query Params:", req.query);
+    console.log("🔹 [LOG] Incoming GET Request - Query Params:", JSON.stringify(req.query, null, 2));
 
-    const { date, skillLevel, status, location, userId } = req.query;
+    // ✅ Ensure query parameters are correctly formatted
+    const status = req.query.status || null;
+    const date = req.query.date || null;
+    const skillLevel = req.query.skillLevel || null;
+    const location = req.query.location || null;
+    const userId = req.query.userId || null;
+
+    console.log("✅ [LOG] Extracted Query Params:", { date, skillLevel, status, location, userId });
+
     let matchesRef = collection(db, "matches");
     let filters = [];
 
@@ -40,17 +48,19 @@ export default async function handler(req, res) {
       }
     }
 
-    // ✅ Convert Strings to Ensure Firestore Type Match
+    // ✅ Apply Skill Level Filter
     if (skillLevel && skillLevel !== "all") {
       filters.push(where("skillLevel", "==", skillLevel.toString()));
       console.log("✅ [LOG] Skill Level filter applied:", skillLevel.toString());
     }
 
+    // ✅ Apply Status Filter
     if (status && status !== "all") {
       filters.push(where("status", "==", status.toString()));
       console.log("✅ [LOG] Status filter applied:", status.toString());
     }
 
+    // ✅ Apply Location Filter
     if (location && location !== "All Locations") {
       filters.push(where("location", "==", location.toString()));
       console.log("✅ [LOG] Location filter applied:", location.toString());
@@ -65,7 +75,7 @@ export default async function handler(req, res) {
     // ✅ Apply Filters to Firestore Query
     if (filters.length > 0) {
       console.log("🔍 [LOG] Filters applied:", filters.map(f => f.fieldPath?.fieldName || f));
-      matchesRef = query(matchesRef, ...filters);  // 🛠️ Fix: Apply filters to query
+      matchesRef = query(matchesRef, ...filters);
     } else {
       console.log("⚠️ [LOG] No filters applied. Fetching all matches.");
     }
