@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 
-// Firebase Configuration (Ensure these are set in Vercel Environment Variables)
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -15,7 +15,7 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// Enable debug mode from environment variable
+// Enable debug mode
 const DEBUG_MODE = process.env.DEBUG_MODE === "true";
 
 // Logging function
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    log("Incoming request", { query: req.query });
+    log("Received query parameters", req.query);
 
     const { date, skillLevel, status, location, userId } = req.query;
     let matchesQuery = collection(db, "matches");
@@ -43,34 +43,37 @@ export default async function handler(req, res) {
       const parsedDate = new Date(date);
       if (!isNaN(parsedDate.getTime())) {
         filters.push(where("date", "==", Timestamp.fromDate(parsedDate)));
+        log("Date filter applied:", Timestamp.fromDate(parsedDate));
       } else {
         console.error("Invalid date format received:", date);
         return res.status(400).json({ error: "Invalid date format" });
       }
     }
 
-    // ✅ Convert Skill Level to String (to match Firestore field type)
+    // ✅ Convert Strings to Ensure Firestore Type Match
     if (skillLevel && skillLevel !== "all") {
       filters.push(where("skillLevel", "==", skillLevel.toString()));
+      log("Skill Level filter applied:", skillLevel.toString());
     }
 
-    // ✅ Convert Status to String
     if (status && status !== "all") {
       filters.push(where("status", "==", status.toString()));
+      log("Status filter applied:", status.toString());
     }
 
-    // ✅ Convert Location to String
     if (location && location !== "All Locations") {
       filters.push(where("location", "==", location.toString()));
+      log("Location filter applied:", location.toString());
     }
 
-    // ✅ Query Matches Containing a Specific Player ID
+    // ✅ Handle Player Filtering
     if (userId) {
       filters.push(where("players", "array-contains", userId));
+      log("Player filter applied:", userId);
     }
 
-    // ✅ Log the filters before running the query
-    log("Filters before Firestore Query:", filters.map(f => f.fieldPath?.fieldName || f));
+    // ✅ Log Firestore Filters
+    filters.forEach((f) => log(`Applying Firestore filter: ${JSON.stringify(f)}`));
 
     // Apply filters
     if (filters.length > 0) {
