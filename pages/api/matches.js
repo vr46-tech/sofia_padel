@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 
-// Firebase Configuration (Ensure these are set in Vercel Environment Variables)
+// Firebase Configuration (Set in Vercel Environment Variables)
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -74,7 +74,11 @@ export default async function handler(req, res) {
     }
 
     // ✅ Log Firestore Filters Before Query Execution
-    filters.forEach((f) => log(`Applying Firestore filter: ${JSON.stringify(f)}`));
+    if (filters.length === 0) {
+      log("No filters applied. Fetching all matches.");
+    } else {
+      log("Filters applied:", filters.map(f => f.fieldPath?.fieldName || f));
+    }
 
     // Apply filters
     if (filters.length > 0) {
@@ -88,8 +92,8 @@ export default async function handler(req, res) {
       return {
         id: doc.id,
         ...matchData,
-        date: matchData.date.toDate(), // Convert Firestore Timestamp to JS Date
-        createdAt: matchData.createdAt.toDate(),
+        date: matchData.date?.toDate ? matchData.date.toDate() : matchData.date, // Ensure proper conversion
+        createdAt: matchData.createdAt?.toDate ? matchData.createdAt.toDate() : matchData.createdAt,
       };
     });
 
