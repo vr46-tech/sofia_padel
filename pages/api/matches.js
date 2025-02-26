@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore, collection, query, where, getDocs, Timestamp } from "firebase/firestore";
 
-// Firebase Configuration (Set in Vercel Environment Variables)
+// Firebase Configuration
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -15,24 +15,13 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-// Enable debug mode from environment variable
-const DEBUG_MODE = process.env.DEBUG_MODE === "true";
-
-// Logging function
-function log(message, data) {
-  if (DEBUG_MODE) {
-    console.log(`[DEBUG] ${message}`, data || "");
-  }
-}
-
-// API Handler
 export default async function handler(req, res) {
   if (req.method !== "GET") {
     return res.status(405).json({ error: "Method Not Allowed" });
   }
 
   try {
-    log("Received query parameters:", req.query);
+    console.log("🔹 [LOG] Incoming GET Request - Query Params:", req.query);
 
     const { date, skillLevel, status, location, userId } = req.query;
     let matchesQuery = collection(db, "matches");
@@ -44,9 +33,9 @@ export default async function handler(req, res) {
       if (!isNaN(parsedDate.getTime())) {
         const firestoreTimestamp = Timestamp.fromDate(parsedDate);
         filters.push(where("date", "==", firestoreTimestamp));
-        log("Date filter applied:", firestoreTimestamp);
+        console.log("✅ [LOG] Date filter applied:", firestoreTimestamp);
       } else {
-        console.error("Invalid date format received:", date);
+        console.error("❌ [ERROR] Invalid date format received:", date);
         return res.status(400).json({ error: "Invalid date format" });
       }
     }
@@ -54,30 +43,30 @@ export default async function handler(req, res) {
     // ✅ Convert Strings to Ensure Firestore Type Match
     if (skillLevel && skillLevel !== "all") {
       filters.push(where("skillLevel", "==", skillLevel.toString()));
-      log("Skill Level filter applied:", skillLevel.toString());
+      console.log("✅ [LOG] Skill Level filter applied:", skillLevel.toString());
     }
 
     if (status && status !== "all") {
       filters.push(where("status", "==", status.toString()));
-      log("Status filter applied:", status.toString());
+      console.log("✅ [LOG] Status filter applied:", status.toString());
     }
 
     if (location && location !== "All Locations") {
       filters.push(where("location", "==", location.toString()));
-      log("Location filter applied:", location.toString());
+      console.log("✅ [LOG] Location filter applied:", location.toString());
     }
 
     // ✅ Handle Player Filtering
     if (userId) {
       filters.push(where("players", "array-contains", userId));
-      log("Player filter applied:", userId);
+      console.log("✅ [LOG] Player filter applied:", userId);
     }
 
     // ✅ Log Firestore Filters Before Query Execution
     if (filters.length === 0) {
-      log("No filters applied. Fetching all matches.");
+      console.log("⚠️ [LOG] No filters applied. Fetching all matches.");
     } else {
-      log("Filters applied:", filters.map(f => f.fieldPath?.fieldName || f));
+      console.log("🔍 [LOG] Filters applied:", filters.map(f => f.fieldPath?.fieldName || f));
     }
 
     // Apply filters
@@ -97,11 +86,12 @@ export default async function handler(req, res) {
       };
     });
 
-    log("Fetched matches from Firestore", { count: matches.length });
+    console.log("✅ [LOG] Matches Fetched - Count:", matches.length);
+    console.log("📄 [LOG] Matches Data:", JSON.stringify(matches, null, 2));
 
     return res.status(200).json({ matches });
   } catch (error) {
-    console.error("[ERROR] Fetching matches failed:", error);
+    console.error("❌ [ERROR] Fetching matches failed:", error);
 
     return res.status(500).json({
       error: "Failed to fetch matches",
