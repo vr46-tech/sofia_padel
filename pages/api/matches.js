@@ -37,14 +37,14 @@ export default async function handler(req, res) {
         let matchesQuery = collection(db, "matches");
         let filters = [];
 
-        // ✅ Convert Date to Firestore Timestamp (with error handling)
+        // ✅ Date Filter (with detailed logging)
         if (date && date !== "all") {
             try {
                 const parsedDate = new Date(date);
                 if (!isNaN(parsedDate.getTime())) {
-                    const timestamp = Timestamp.fromDate(parsedDate); //Correct Timestamp usage
+                    const timestamp = Timestamp.fromDate(parsedDate);
                     filters.push(where("date", "==", timestamp));
-                    log("Date filter applied:", timestamp);
+                    log(`Date filter applied: Date String: ${date}, Timestamp: ${timestamp}`);  //More details
                 } else {
                     console.error("Invalid date format received:", date);
                     return res.status(400).json({ error: "Invalid date format" });
@@ -55,30 +55,29 @@ export default async function handler(req, res) {
             }
         }
 
-        // ✅ Convert Strings to Ensure Firestore Type Match
+        // ✅ Skill Level Filter (with type check)
         if (skillLevel && skillLevel !== "all") {
-            filters.push(where("skillLevel", "==", skillLevel)); //removed toString()
-            log("Skill Level filter applied:", skillLevel);
+            log(`SkillLevel filter - Expected Type: STRING, Value Received: ${skillLevel}, Type: ${typeof skillLevel}`); // Added type check
+            filters.push(where("skillLevel", "==", skillLevel));  // removed toString()
         }
 
+        // ✅ Status Filter (with type check)
         if (status && status !== "all") {
-            filters.push(where("status", "==", status)); //removed toString()
-            log("Status filter applied:", status);
+            log(`Status filter - Expected Type: STRING, Value Received: ${status}, Type: ${typeof status}`); // Added type check
+            filters.push(where("status", "==", status)); // removed toString()
         }
 
+        // ✅ Location Filter (with type check)
         if (location && location !== "All Locations") {
-            filters.push(where("location", "==", location)); //removed toString()
-            log("Location filter applied:", location);
+            log(`Location filter - Expected Type: STRING, Value Received: ${location}, Type: ${typeof location}`); // Added type check
+            filters.push(where("location", "==", location));  // removed toString()
         }
 
-        // ✅ Handle Player Filtering
+        // ✅ User ID Filter (with type check)
         if (userId) {
+            log(`UserID filter - Expected Type: STRING, Value Received: ${userId}, Type: ${typeof userId}`); // Added type check
             filters.push(where("players", "array-contains", userId));
-            log("Player filter applied:", userId);
         }
-
-        // ✅ Log Firestore Filters (Improved Logging)
-        filters.forEach((f) => log(`Applying Firestore filter: ${f.type} - ${f.field} ${f.opStr} ${f.value}`));
 
         // Apply filters
         if (filters.length > 0) {
@@ -92,7 +91,7 @@ export default async function handler(req, res) {
             return {
                 id: doc.id,
                 ...matchData,
-                date: matchData.date?.toDate ? matchData.date.toDate() : matchData.date, // Ensure proper conversion
+                date: matchData.date?.toDate ? matchData.date.toDate() : matchData.date,
                 createdAt: matchData.createdAt?.toDate ? matchData.createdAt.toDate() : matchData.createdAt,
             };
         });
