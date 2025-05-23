@@ -4,7 +4,7 @@ const handlebars = require('handlebars');
 const fs = require('fs');
 const path = require('path');
 
-// Initialize Firebase Admin SDK once
+// Initialize Firebase Admin SDK (do this only once in your app)
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.applicationDefault(), // or use serviceAccount
@@ -12,7 +12,7 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-// Read the HTML template from /public folder (serverless compatible)
+// Load the HTML template (save your template as 'orderConfirmationTemplate.html' in the /public directory)
 const templateSource = fs.readFileSync(
   path.join(process.cwd(), 'public', 'orderConfirmationTemplate.html'),
   'utf8'
@@ -52,7 +52,7 @@ async function sendOrderConfirmationEmail(orderId) {
     // Prepare template data
     const templateData = {
       customerName: `${order.first_name} ${order.last_name}`,
-      items,
+      items: items,
       subtotal: order.total_amount ? order.total_amount.toFixed(2) : '0.00',
       shippingCostDisplay: order.shipping_cost > 0 ? '€' + order.shipping_cost.toFixed(2) : 'FREE',
       total: order.total_amount ? order.total_amount.toFixed(2) : '0.00',
@@ -61,7 +61,7 @@ async function sendOrderConfirmationEmail(orderId) {
       postalCode: order.postal_code,
       phone: order.phone,
       deliveryOptionDisplay: order.delivery_option === 'delivery' ? 'Delivery to address' : 'Pick up from address',
-      paymentMethodDisplay: order.payment_method === 'card' ? 'Pay by Card on Delivery' : 'Cash on Delivery',
+      paymentMethodDisplay: order.payment_method === 'card' ? 'Pay by Card on Delivery' : 'Cash on Delivery'
     };
 
     // Generate the HTML email content
@@ -83,7 +83,7 @@ async function sendOrderConfirmationEmail(orderId) {
   }
 }
 
-// Default export required by Next.js API routes
+// **Default export required for Next.js API route**
 module.exports = async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ message: 'Method Not Allowed' });
