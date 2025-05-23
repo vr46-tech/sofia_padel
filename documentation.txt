@@ -1,0 +1,119 @@
+Order Confirmation and Invoice Generation: Technical Implementation Summary
+1. Checkout Flow and Order Creation
+Frontend:
+The checkout page (CheckOut.tsx) collects customer details and cart items.
+On form submission:
+
+An order document is created in Firestore (orders collection).
+
+A notification document is created in Firestore (notifications collection).
+
+The cart is cleared and the user is redirected to a success page.
+
+Order ID:
+The Firestore document reference (orderRef.id) is immediately available after order creation and used as a unique identifier for all downstream processes.
+
+2. Order Confirmation Email Trigger
+API Integration:
+After the order and notification are created, the frontend makes a POST request to a Vercel API endpoint (e.g. /api/OrderConfirmation) with { orderId } in the body.
+
+API Route Implementation:
+
+The API route receives the order ID.
+
+It fetches the order data from Firestore.
+
+For each item in the order, it fetches product details (including name and image) from the products collection.
+
+It uses a Handlebars HTML template to generate a visually rich order confirmation email, including product images and all order details.
+
+The email is sent to the customer using Nodemailer and your SMTP server.
+
+3. Invoice Generation and Emailing
+Invoice API Endpoint:
+You have a dedicated API route (e.g. /api/Invoice) that:
+
+Accepts a POST request with { orderId }.
+
+Fetches the order and product data from Firestore (as above).
+
+Prepares all invoice details: customer info, company info, product lines, shipping, VAT (20%), totals, and payment method.
+
+PDF Generation:
+
+Uses @react-pdf/renderer and a React component (InvoicePDF.tsx) to define the invoice layout.
+
+The invoice includes your logo, company and customer details, a structured product table (with proper alignment and professional fonts), a VAT breakdown, and payment terms.
+
+The PDF is generated server-side in the API route using renderToBuffer.
+
+All fonts are black for professionalism, and a modern font (e.g., Roboto) is used for clarity.
+
+Emailing the Invoice:
+
+The generated PDF is attached to an email sent to the customer using Nodemailer and your SMTP server.
+
+The email subject and body are customizable.
+
+4. Key Technical Details
+Serverless & Vercel:
+
+All API routes are implemented as serverless functions in the /pages/api/ directory.
+
+All PDF and email generation is done server-side—no browser or client code involved.
+
+The solution is compatible with Vercel’s serverless environment.
+
+Dependencies:
+
+firebase (client SDK) for Firestore access.
+
+nodemailer for SMTP email delivery.
+
+@react-pdf/renderer for PDF invoice creation.
+
+handlebars for HTML email templating (order confirmation).
+
+Environment Variables:
+
+SMTP credentials, Firebase config, and any other secrets are managed via Vercel’s environment variables.
+
+CORS:
+
+If your frontend and backend are on different domains, CORS headers are set in the API routes to allow cross-origin requests.
+
+5. Professional Output
+Order Confirmation Email:
+
+HTML email matching your checkout UI, with product images, customer and order details, and a clear summary.
+
+Invoice PDF:
+
+Clean, professional layout with logo, clear table alignment, black fonts, VAT and total breakdown, and payment instructions.
+
+Example output matches best practices for European/Bulgarian invoices.
+
+6. Debugging and Maintenance Tips
+If emails or invoices are not sent:
+
+Check Vercel logs for errors in the API routes.
+
+Verify SMTP credentials and Firestore permissions.
+
+Ensure all required environment variables are set.
+
+If PDF layout breaks:
+
+Review InvoicePDF.tsx for style or font issues.
+
+Make sure all product data (especially images and names) are present in Firestore.
+
+If API requests fail from the frontend:
+
+Check CORS headers and API route accessibility.
+
+Confirm the correct API URL is used in the fetch call.
+
+If you change Firestore structure:
+
+Update the API route logic to match new field names or data shapes.
