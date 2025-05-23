@@ -14,7 +14,10 @@ if (!admin.apps.length) {
 const db = admin.firestore();
 
 // Load the HTML template (save your template as 'orderConfirmationTemplate.html' in the same directory)
-const templateSource = fs.readFileSync(path.join(__dirname, 'orderConfirmationTemplate.html'), 'utf8');
+const templateSource = fs.readFileSync(
+  path.join(process.cwd(), 'public', 'orderConfirmationTemplate.html'),
+  'utf8'
+);
 const template = handlebars.compile(templateSource);
 
 // Configure Nodemailer SMTP transport
