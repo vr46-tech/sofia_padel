@@ -43,10 +43,7 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Helper: Fetch product names from products collection using product_id
- * @param {*} db - Firestore database instance
- * @param {Array} orderItems - Array of order items from the order document
- * @returns {Array} - Array of items with actual product names from products collection
+ * Fetch product names and images from products collection using product_id
  */
 async function prepareItemsWithProductNames(db, orderItems) {
   const itemsWithNames = [];
@@ -83,74 +80,52 @@ async function prepareItemsWithProductNames(db, orderItems) {
   return itemsWithNames;
 }
 
-  
-  console.log(`Prepared items with product names:`, itemsWithNames);
-  return itemsWithNames;
-}
-
 /**
  * Send order confirmation email for a given orderId
- * @param {string} orderId - Firestore document ID for the order
  */
 async function sendOrderConfirmationEmail(orderId) {
-  try {
-    console.log(`Starting email confirmation for order: ${orderId}`);
-    
-    // Fetch order data from Firestore
-    const orderDocRef = doc(db, "orders", orderId);
-    const orderDoc = await getDoc(orderDocRef);
-    
-    if (!orderDoc.exists()) {
-      throw new Error("Order not found");
-    }
-    
-    const order = orderDoc.data();
-    console.log(`Order data fetched:`, order);
+  const orderDocRef = doc(db, "orders", orderId);
+  const orderDoc = await getDoc(orderDocRef);
+  if (!orderDoc.exists()) throw new Error("Order not found");
+  const order = orderDoc.data();
 
-    // Prepare items array with actual product names from products collection
-    const items = await prepareItemsWithProductNames(db, order.items || []);
+  // Prepare items array with product names and images from products collection
+  const items = await prepareItemsWithProductNames(db, order.items || []);
 
-    // Prepare template data
-    const templateData = {
-      customerName: `${order.first_name} ${order.last_name}`,
-      items: items,
-      subtotal: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
-      shippingCostDisplay:
-        order.shipping_cost > 0 ? "€" + order.shipping_cost.toFixed(2) : "FREE",
-      total: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
-      address: order.address,
-      city: order.city,
-      postalCode: order.postal_code,
-      phone: order.phone,
-      deliveryOptionDisplay:
-        order.delivery_option === "delivery"
-          ? "Delivery to address"
-          : "Pick up from address",
-      paymentMethodDisplay:
-        order.payment_method === "card"
-          ? "Pay by Card on Delivery"
-          : "Cash on Delivery",
-    };
+  // Prepare template data
+  const templateData = {
+    customerName: `${order.first_name} ${order.last_name}`,
+    items: items,
+    subtotal: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
+    shippingCostDisplay:
+      order.shipping_cost > 0 ? "€" + order.shipping_cost.toFixed(2) : "FREE",
+    total: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
+    address: order.address,
+    city: order.city,
+    postalCode: order.postal_code,
+    phone: order.phone,
+    deliveryOptionDisplay:
+      order.delivery_option === "delivery"
+        ? "Delivery to address"
+        : "Pick up from address",
+    paymentMethodDisplay:
+      order.payment_method === "card"
+        ? "Pay by Card on Delivery"
+        : "Cash on Delivery",
+  };
 
-    console.log(`Template data prepared:`, templateData);
+  // Generate the HTML email content
+  const htmlContent = template(templateData);
 
-    // Generate the HTML email content
-    const htmlContent = template(templateData);
+  // Send the email
+  await transporter.sendMail({
+    from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
+    to: order.user_email,
+    subject: "Order Confirmation - Sofia Padel",
+    html: htmlContent,
+  });
 
-    // Send the email
-    await transporter.sendMail({
-      from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
-      to: order.user_email,
-      subject: "Order Confirmation - Sofia Padel",
-      html: htmlContent,
-    });
-
-    console.log(`Order confirmation email sent to ${order.user_email}`);
-    return true;
-  } catch (error) {
-    console.error("Error in sendOrderConfirmationEmail:", error);
-    throw error;
-  }
+  return true;
 }
 
 // Default export required for Next.js API route
@@ -167,14 +142,12 @@ export default async function handler(req, res) {
   }
 
   try {
-    console.log(`Processing order confirmation for: ${orderId}`);
     await sendOrderConfirmationEmail(orderId);
     res.status(200).json({ message: "Order confirmation email sent!" });
   } catch (error) {
-    console.error("Error sending order confirmation email:", error);
-    res.status(500).json({ 
-      message: "Internal server error", 
-      error: error.message 
+    res.status(500).json({
+      message: "Internal server error",
+      error: error.message,
     });
   }
 }
