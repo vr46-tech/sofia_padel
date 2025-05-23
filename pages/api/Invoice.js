@@ -2,6 +2,7 @@ import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, doc, getDoc, collection, addDoc, Timestamp } from "firebase/firestore";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import nodemailer from "nodemailer";
 import { InvoicePDF } from "../../components/pdf/InvoicePDF";
 
 // Firebase config and initialization (client SDK)
@@ -104,7 +105,7 @@ export default async function handler(req, res) {
       />
     );
 
-    // Convert Buffer to base64 for Firestore (since Firestore client SDK does not support Blob directly in Node.js)
+    // Convert PDF buffer to base64 for Firestore storage
     const pdfBase64 = pdfBuffer.toString("base64");
 
     // Store invoice in Firestore
@@ -137,13 +138,38 @@ export default async function handler(req, res) {
           ? "Pay by Card on Delivery"
           : "Cash on Delivery",
       createdAt: Timestamp.now(),
-      pdfBase64, // Store the PDF as a base64 string
+      pdfBase64, // Store PDF as base64 string
     };
 
     await addDoc(collection(db, "invoices"), invoiceDoc);
 
+    // Send email with PDF attached
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: process.env.SMTP_PORT,
+      secure: true,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
+      to: order.user_email,
+      subject: "Your Invoice - Sofia Padel",
+      text: "Thank you for your purchase! Your invoice is attached.",
+      attachments: [
+        {
+          filename: `${invoiceNumber}.pdf`,
+          content: pdfBuffer,
+          contentType: "application/pdf",
+        },
+      ],
+    });
+
     res.status(200).json({
-      message: "Invoice PDF saved as blob in Firestore invoice record.",
+      message: "Invoice PDF sent to customer and stored in Firestore.",
       invoiceNumber,
     });
   } catch (error) {
