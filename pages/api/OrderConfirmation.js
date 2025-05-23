@@ -48,7 +48,7 @@ const transporter = nodemailer.createTransport({
 async function prepareItemsWithProductNames(db, orderItems) {
   const itemsWithNames = [];
   for (const item of orderItems) {
-    let productName = item.name; // fallback to order item name
+    let productName = item.name; // fallback
     try {
       if (item.product_id) {
         const productDocRef = doc(db, "products", item.product_id);
@@ -56,7 +56,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
         if (productDoc.exists()) {
           const productData = productDoc.data();
           if (productData && productData.name) {
-            productName = productData.name;
+            productName = productData.name; // <-- Use the product's name from products collection
           }
         }
       }
