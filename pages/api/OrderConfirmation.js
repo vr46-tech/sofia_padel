@@ -84,7 +84,7 @@ async function sendOrderConfirmationEmail(orderId) {
 }
 
 // **Default export required for Next.js API route**
-module.exports = async function handler(req, res) {
+export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ message: 'Method Not Allowed' });
     return;
