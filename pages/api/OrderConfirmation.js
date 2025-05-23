@@ -130,27 +130,27 @@ async function sendOrderConfirmationEmail(orderId) {
 
 // Default export required for Next.js API route
 export default async function handler(req, res) {
-
- if (req.method === 'OPTIONS') {
+  // Always set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.status(204).end();
-  return;
-}
-res.setHeader('Access-Control-Allow-Origin', '*');
-res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ message: "Method Not Allowed" });
     return;
   }
 
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
+  // Optional: API key check (uncomment if you want API key protection)
+  // const apiKey = req.headers['x-api-key'];
+  // if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
+  //   return res.status(401).json({ message: "Unauthorized" });
+  // }
 
   const { orderId } = req.body;
   if (!orderId) {
