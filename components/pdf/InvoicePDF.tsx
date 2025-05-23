@@ -100,11 +100,10 @@ export const InvoicePDF = ({
           <Text>{customer.phone}</Text>
         </View>
 
-        {/* Items Table */}
+        {/* Items Table (Description column removed) */}
         <View style={styles.table}>
           <View style={[styles.tableRow, styles.tableHeader]}>
             <Text style={[styles.cell, { flex: 2 }]}>ITEM</Text>
-            <Text style={[styles.cell, styles.cellCenter, { flex: 1 }]}>DESCRIPTION</Text>
             <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>QUANTITY</Text>
             <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>PRICE</Text>
             <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>TAX</Text>
@@ -113,7 +112,6 @@ export const InvoicePDF = ({
           {items.map((item, idx) => (
             <View key={idx} style={styles.tableRow}>
               <Text style={[styles.cell, { flex: 2 }]}>{item.name}</Text>
-              <Text style={[styles.cell, styles.cellCenter, { flex: 1 }]}>{item.brand || "-"}</Text>
               <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>{item.quantity}</Text>
               <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>{item.price.toFixed(2)} {currency}</Text>
               <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>20%</Text>
