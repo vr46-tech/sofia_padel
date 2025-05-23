@@ -47,14 +47,49 @@
     }
     .order-item {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
       font-size: 1em;
       color: #196c65;
+      border-bottom: 1px solid #e5e5e5;
+      padding-bottom: 12px;
     }
     .order-item:last-child {
       margin-bottom: 0;
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+    .item-image {
+      width: 64px;
+      height: 64px;
+      object-fit: contain;
+      border-radius: 8px;
+      margin-right: 16px;
+      background: #fff;
+      border: 1px solid #e5e5e5;
+    }
+    .item-details {
+      flex: 1;
+    }
+    .item-name {
+      font-weight: 600;
+      color: #1a4744;
+    }
+    .item-brand {
+      font-size: 0.95em;
+      color: #20a799;
+      margin-bottom: 2px;
+    }
+    .item-qty {
+      font-size: 0.97em;
+      color: #666;
+    }
+    .item-total {
+      font-weight: bold;
+      color: #20a799;
+      margin-left: 12px;
+      min-width: 70px;
+      text-align: right;
     }
     .totals {
       border-top: 1px solid #e5e5e5;
@@ -97,6 +132,18 @@
       .container {
         padding: 18px 4vw;
       }
+      .order-item {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+      .item-image {
+        margin-bottom: 8px;
+        margin-right: 0;
+      }
+      .item-total {
+        margin-left: 0;
+        margin-top: 4px;
+      }
     }
   </style>
 </head>
@@ -111,8 +158,15 @@
     <div class="order-summary">
       {{#each items}}
       <div class="order-item">
-        <span><strong>{{brand}}</strong> {{name}} × {{quantity}}</span>
-        <span>€{{itemTotal}}</span>
+        {{#if image_url}}
+          <img class="item-image" src="{{image_url}}" alt="{{name}}" />
+        {{/if}}
+        <div class="item-details">
+          {{#if brand}}<div class="item-brand">{{brand}}</div>{{/if}}
+          <div class="item-name">{{name}}</div>
+          <div class="item-qty">Quantity: {{quantity}}</div>
+        </div>
+        <div class="item-total">€{{itemTotal}}</div>
       </div>
       {{/each}}
       <div class="totals">
