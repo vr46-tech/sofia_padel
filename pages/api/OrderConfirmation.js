@@ -147,6 +147,11 @@ res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
     return;
   }
 
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
   const { orderId } = req.body;
   if (!orderId) {
     res.status(400).json({ message: "Missing orderId in request body" });
