@@ -82,6 +82,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
   }
   return itemsWithNames;
 }
+
   
   console.log(`Prepared items with product names:`, itemsWithNames);
   return itemsWithNames;
