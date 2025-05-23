@@ -50,55 +50,38 @@ const transporter = nodemailer.createTransport({
  */
 async function prepareItemsWithProductNames(db, orderItems) {
   const itemsWithNames = [];
-  
   for (const item of orderItems) {
-    let displayName = "Unknown Product"; // default fallback
+    let displayName = "Unknown Product";
     let brand = "";
-    
+    let imageUrl = "";
     try {
       if (item.product_id) {
-        console.log(`Fetching product data for product_id: ${item.product_id}`);
-        
-        // Fetch the product document from products collection
         const productDocRef = doc(db, "products", item.product_id);
         const productDoc = await getDoc(productDocRef);
-        
         if (productDoc.exists()) {
           const productData = productDoc.data();
-          console.log(`Product found:`, productData);
-          
-          // Use the product name from the products collection (e.g., "Hack 04 Hybrid 2025")
-          if (productData.name) {
-            displayName = productData.name;
-          }
-          
-          // Optionally, you can also get brand info if stored separately
-          if (productData.brand_name) {
-            brand = productData.brand_name;
-          }
+          if (productData.name) displayName = productData.name;
+          if (productData.brand_name) brand = productData.brand_name;
+          if (productData.image_url) imageUrl = productData.image_url;
         } else {
-          console.log(`Product not found for product_id: ${item.product_id}`);
-          // Use the name from order item as fallback
           displayName = item.name || "Unknown Product";
         }
       } else {
-        console.log(`No product_id found for item:`, item);
-        // Use the name from order item as fallback
         displayName = item.name || "Unknown Product";
       }
     } catch (error) {
-      console.error(`Error fetching product for product_id ${item.product_id}:`, error);
-      // Use the name from order item as fallback
       displayName = item.name || "Unknown Product";
     }
-    
     itemsWithNames.push({
-      brand: brand,
-      name: displayName, // This will be the actual product name from products collection
+      brand,
+      name: displayName,
+      image_url: imageUrl,
       quantity: item.quantity,
       itemTotal: (item.price * item.quantity).toFixed(2),
     });
   }
+  return itemsWithNames;
+}
   
   console.log(`Prepared items with product names:`, itemsWithNames);
   return itemsWithNames;
