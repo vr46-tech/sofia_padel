@@ -43,6 +43,36 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
+ * Helper: Prepare items array for template, fetching product names from products collection
+ */
+async function prepareItemsWithProductNames(db, orderItems) {
+  const itemsWithNames = [];
+  for (const item of orderItems) {
+    let productName = item.name; // fallback to order item name
+    try {
+      if (item.product_id) {
+        const productDocRef = doc(db, "products", item.product_id);
+        const productDoc = await getDoc(productDocRef);
+        if (productDoc.exists()) {
+          const productData = productDoc.data();
+          if (productData && productData.name) {
+            productName = productData.name;
+          }
+        }
+      }
+    } catch (error) {
+      // fallback to order item name
+    }
+    itemsWithNames.push({
+      name: productName,
+      quantity: item.quantity,
+      itemTotal: (item.price * item.quantity).toFixed(2),
+    });
+  }
+  return itemsWithNames;
+}
+
+/**
  * Send order confirmation email for a given orderId
  * @param {string} orderId - Firestore document ID for the order
  */
@@ -53,13 +83,8 @@ async function sendOrderConfirmationEmail(orderId) {
   if (!orderDoc.exists()) throw new Error("Order not found");
   const order = orderDoc.data();
 
-  // Prepare items array for template
-  const items = (order.items || []).map((item) => ({
-    brand: item.name,
-    name: item.name === "Bullpadel" ? "" : item.name,
-    quantity: item.quantity,
-    itemTotal: (item.price * item.quantity).toFixed(2),
-  }));
+  // Prepare items array with product names from products collection
+  const items = await prepareItemsWithProductNames(db, order.items || []);
 
   // Prepare template data
   const templateData = {
