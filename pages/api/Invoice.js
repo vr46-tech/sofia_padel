@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, Timestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, Timestamp, runTransaction } from "firebase/firestore";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import nodemailer from "nodemailer";
@@ -14,6 +14,7 @@ const firebaseConfig = {
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.FIREBASE_APP_ID,
 };
+
 let firebaseApp;
 if (!getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
@@ -40,23 +41,22 @@ async function getNextInvoiceNumber() {
 }
 
 export default async function handler(req, res) {
-
-   if (req.method === 'OPTIONS') {
+  // CORS headers for all requests
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  res.status(204).end();
-  return;
-}
-res.setHeader('Access-Control-Allow-Origin', '*');
-res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
+
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    res.status(204).end();
+    return;
+  }
+
   if (req.method !== "POST") {
     res.status(405).json({ message: "Method Not Allowed" });
     return;
   }
-  
+
   const apiKey = req.headers['x-api-key'];
   if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
     return res.status(401).json({ message: "Unauthorized" });
