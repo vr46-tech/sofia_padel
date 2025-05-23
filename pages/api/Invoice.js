@@ -1,11 +1,10 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
-import nodemailer from "nodemailer";
+import { getFirestore, doc, getDoc, collection, addDoc, Timestamp } from "firebase/firestore";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
-import { InvoicePDF } from "../../components/pdf/InvoicePDF"; // Adjust path as needed
+import { InvoicePDF } from "../../components/pdf/InvoicePDF";
 
-// Firebase config
+// Firebase config and initialization (client SDK)
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -14,7 +13,6 @@ const firebaseConfig = {
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.FIREBASE_APP_ID,
 };
-
 let firebaseApp;
 if (!getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
@@ -62,19 +60,57 @@ export default async function handler(req, res) {
         quantity: item.quantity,
         price: item.price,
         image_url,
+        total: item.price * item.quantity,
       });
     }
 
     // Prepare invoice data
-    const invoiceProps = {
-      invoiceNumber: `INV-${orderId.slice(-6).toUpperCase()}`,
-      issueDate: new Date().toISOString().slice(0, 10),
-      company: {
-        name: "Sofia Padel",
-        address: "123 Avenue Padel",
-        city: "Sofia",
-        vatNumber: "BG123456789",
-      },
+    const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+    const shippingCost = order.shipping_cost || 0;
+    const basePrice = order.base_price || 0;
+    const totalBeforeVAT = subtotal + shippingCost + basePrice;
+    const vatAmount = totalBeforeVAT * 0.2;
+    const total = totalBeforeVAT + vatAmount;
+
+    const invoiceNumber = `INV-${orderId.slice(-6).toUpperCase()}`;
+    const issueDate = new Date().toISOString().slice(0, 10);
+
+    // Generate PDF buffer
+    const pdfBuffer = await renderToBuffer(
+      <InvoicePDF
+        invoiceNumber={invoiceNumber}
+        issueDate={issueDate}
+        company={{
+          name: "Sofia Padel",
+          address: "123 Avenue Padel",
+          city: "Sofia",
+          vatNumber: "BG123456789",
+        }}
+        customer={{
+          name: `${order.first_name} ${order.last_name}`,
+          address: order.address,
+          city: order.city,
+          postalCode: order.postal_code,
+          phone: order.phone,
+        }}
+        items={items}
+        shippingCost={shippingCost}
+        basePrice={basePrice}
+        paymentMethod={
+          order.payment_method === "card"
+            ? "Pay by Card on Delivery"
+            : "Cash on Delivery"
+        }
+      />
+    );
+
+    // Convert Buffer to base64 for Firestore (since Firestore client SDK does not support Blob directly in Node.js)
+    const pdfBase64 = pdfBuffer.toString("base64");
+
+    // Store invoice in Firestore
+    const invoiceDoc = {
+      orderId,
+      user_email: order.user_email,
       customer: {
         name: `${order.first_name} ${order.last_name}`,
         address: order.address,
@@ -82,44 +118,34 @@ export default async function handler(req, res) {
         postalCode: order.postal_code,
         phone: order.phone,
       },
+      company: {
+        name: "Sofia Padel",
+        address: "123 Avenue Padel",
+        city: "Sofia",
+        vatNumber: "BG123456789",
+      },
+      invoiceNumber,
+      issueDate,
       items,
-      shippingCost: order.shipping_cost || 0,
-      basePrice: order.base_price || 0,
+      subtotal,
+      shippingCost,
+      basePrice,
+      vatAmount,
+      total,
       paymentMethod:
         order.payment_method === "card"
           ? "Pay by Card on Delivery"
           : "Cash on Delivery",
+      createdAt: Timestamp.now(),
+      pdfBase64, // Store the PDF as a base64 string
     };
 
-    // Generate PDF buffer
-    const pdfBuffer = await renderToBuffer(<InvoicePDF {...invoiceProps} />);
+    await addDoc(collection(db, "invoices"), invoiceDoc);
 
-    // Send email with PDF attached
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: process.env.SMTP_PORT,
-      secure: true,
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
+    res.status(200).json({
+      message: "Invoice PDF saved as blob in Firestore invoice record.",
+      invoiceNumber,
     });
-
-    await transporter.sendMail({
-      from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
-      to: order.user_email,
-      subject: "Your Invoice - Sofia Padel",
-      text: "Thank you for your purchase! Your invoice is attached.",
-      attachments: [
-        {
-          filename: `${invoiceProps.invoiceNumber}.pdf`,
-          content: pdfBuffer,
-          contentType: "application/pdf",
-        },
-      ],
-    });
-
-    res.status(200).json({ message: "Invoice PDF sent to customer." });
   } catch (error) {
     console.error("Invoice error:", error);
     res.status(500).json({ message: "Internal server error", error: error.message });
