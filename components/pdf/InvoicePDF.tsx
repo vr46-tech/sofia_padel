@@ -5,19 +5,26 @@ import {
   View,
   Document,
   StyleSheet,
+  Font,
   Image,
 } from "@react-pdf/renderer";
 
-// You can import your logo or use a URL:
-const LOGO_URL = "https://i.postimg.cc/fWr5F6YW/no-Bg-Color-1.png";
+// Register a clean, professional font (Roboto)
+Font.register({
+  family: "Roboto",
+  fonts: [
+    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf" }, // Regular
+    { src: "https://fonts.gstatic.com/s/roboto/v30/KFOlCnqEu92Fr1MmWUlfBBc9.ttf", fontWeight: 700 }, // Bold
+  ],
+});
 
 const styles = StyleSheet.create({
   page: {
-    fontFamily: "Helvetica",
+    fontFamily: "Roboto",
     fontSize: 12,
     padding: 32,
     backgroundColor: "#f7f7f7",
-    color: "#1a4744",
+    color: "#000",
   },
   logo: {
     width: 100,
@@ -26,10 +33,10 @@ const styles = StyleSheet.create({
   },
   section: { marginBottom: 18 },
   headerRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  header: { fontSize: 22, color: "#20a799", fontWeight: "bold" },
-  company: { fontSize: 12, color: "#196c65", marginBottom: 2 },
-  infoLabel: { color: "#666666", fontSize: 10 },
-  infoValue: { fontWeight: 500, color: "#1a4744", fontSize: 12, marginBottom: 2 },
+  header: { fontSize: 22, fontWeight: "bold" },
+  company: { fontSize: 12, fontWeight: "bold", marginBottom: 2 },
+  infoLabel: { color: "#222", fontSize: 10 },
+  infoValue: { fontWeight: 500, color: "#000", fontSize: 12, marginBottom: 2 },
   table: { display: "table", width: "auto", marginBottom: 16, borderRadius: 6, overflow: "hidden" },
   tableRow: {
     flexDirection: "row",
@@ -42,20 +49,14 @@ const styles = StyleSheet.create({
   tableHeader: {
     backgroundColor: "#f0fdfb",
     fontWeight: "bold",
-    color: "#1a857c",
+    color: "#000",
     borderBottomWidth: 2,
-    borderBottomColor: "#20a799",
+    borderBottomColor: "#000",
   },
-  tableCell: { padding: 6, fontSize: 11, flexGrow: 1 },
-  imageCell: {
-    width: 40,
-    height: 40,
-    marginRight: 8,
-    borderRadius: 4,
-    objectFit: "contain",
-    backgroundColor: "#fff",
-    border: "1px solid #e5e5e5",
-  },
+  cellProduct: { padding: 6, fontSize: 11, flexBasis: "45%", textAlign: "left" },
+  cellQty: { padding: 6, fontSize: 11, flexBasis: "15%", textAlign: "center" },
+  cellPrice: { padding: 6, fontSize: 11, flexBasis: "20%", textAlign: "right" },
+  cellTotal: { padding: 6, fontSize: 11, flexBasis: "20%", textAlign: "right" },
   altRow: { backgroundColor: "#fafafa" },
   totalsRow: {
     flexDirection: "row",
@@ -63,54 +64,23 @@ const styles = StyleSheet.create({
     marginTop: 5,
     alignItems: "center",
   },
-  totalsLabel: { width: 140, textAlign: "right", marginRight: 8, color: "#404040" },
-  totalsValue: { width: 80, textAlign: "right", fontWeight: "bold", color: "#20a799" },
+  totalsLabel: { width: 140, textAlign: "right", marginRight: 8, color: "#222" },
+  totalsValue: { width: 80, textAlign: "right", fontWeight: "bold", color: "#000" },
   grandTotal: {
     fontWeight: "bold",
     fontSize: 15,
-    color: "#1a857c",
+    color: "#000",
     borderTopWidth: 2,
-    borderTopColor: "#20a799",
+    borderTopColor: "#000",
     borderTopStyle: "solid",
     marginTop: 8,
     paddingTop: 4,
   },
-  footer: { marginTop: 32, textAlign: "center", color: "#818181", fontSize: 10 },
-  paymentTerms: { marginTop: 10, color: "#404040", fontSize: 11, textAlign: "center" },
+  footer: { marginTop: 32, textAlign: "center", color: "#555", fontSize: 10 },
+  paymentTerms: { marginTop: 10, color: "#222", fontSize: 11, textAlign: "center" },
 });
 
-type InvoiceItem = {
-  name: string;
-  brand?: string;
-  quantity: number;
-  price: number;
-  image_url?: string;
-};
-
-type InvoiceProps = {
-  invoiceNumber: string;
-  issueDate: string;
-  dueDate?: string;
-  company: {
-    name: string;
-    address: string;
-    city: string;
-    vatNumber: string;
-  };
-  customer: {
-    name: string;
-    address: string;
-    city: string;
-    postalCode: string;
-    phone: string;
-  };
-  items: InvoiceItem[];
-  shippingCost: number;
-  basePrice: number;
-  paymentMethod: string;
-};
-
-export const InvoicePDF: React.FC<InvoiceProps> = ({
+export const InvoicePDF = ({
   invoiceNumber,
   issueDate,
   dueDate,
@@ -132,7 +102,7 @@ export const InvoicePDF: React.FC<InvoiceProps> = ({
         {/* Header with logo and invoice info */}
         <View style={[styles.section, styles.headerRow]}>
           <View>
-            <Image src={LOGO_URL} style={styles.logo} />
+            {/* <Image src={LOGO_URL} style={styles.logo} /> */}
             <Text style={styles.company}>{company.name}</Text>
             <Text style={styles.infoLabel}>VAT: {company.vatNumber}</Text>
             <Text style={styles.infoLabel}>{company.address}, {company.city}</Text>
@@ -158,10 +128,10 @@ export const InvoicePDF: React.FC<InvoiceProps> = ({
         {/* Items Table */}
         <View style={styles.table}>
           <View style={[styles.tableRow, styles.tableHeader]}>
-            <Text style={[styles.tableCell, { flexGrow: 2 }]}>Product</Text>
-            <Text style={styles.tableCell}>Qty</Text>
-            <Text style={styles.tableCell}>Unit Price</Text>
-            <Text style={styles.tableCell}>Total</Text>
+            <Text style={styles.cellProduct}>Product</Text>
+            <Text style={styles.cellQty}>Qty</Text>
+            <Text style={styles.cellPrice}>Unit Price</Text>
+            <Text style={styles.cellTotal}>Total</Text>
           </View>
           {items.map((item, idx) => (
             <View
@@ -171,25 +141,10 @@ export const InvoicePDF: React.FC<InvoiceProps> = ({
                 idx % 2 === 1 ? styles.altRow : undefined,
               ]}
             >
-              <View
-                style={[
-                  styles.tableCell,
-                  { flexGrow: 2, flexDirection: "row", alignItems: "center" },
-                ]}
-              >
-                {item.image_url && (
-                  <Image src={item.image_url} style={styles.imageCell} />
-                )}
-                <View>
-                  <Text>{item.name}</Text>
-                  {item.brand && (
-                    <Text style={{ fontSize: 9, color: "#20a799" }}>{item.brand}</Text>
-                  )}
-                </View>
-              </View>
-              <Text style={styles.tableCell}>{item.quantity}</Text>
-              <Text style={styles.tableCell}>€{item.price.toFixed(2)}</Text>
-              <Text style={styles.tableCell}>€{(item.price * item.quantity).toFixed(2)}</Text>
+              <Text style={styles.cellProduct}>{item.name}</Text>
+              <Text style={styles.cellQty}>{item.quantity}</Text>
+              <Text style={styles.cellPrice}>€{item.price.toFixed(2)}</Text>
+              <Text style={styles.cellTotal}>€{(item.price * item.quantity).toFixed(2)}</Text>
             </View>
           ))}
         </View>
@@ -226,7 +181,7 @@ export const InvoicePDF: React.FC<InvoiceProps> = ({
 
         {/* Footer */}
         <Text style={styles.footer}>
-          Thank you for your business! | Sofia Padel | {company.address} | info@sofiapadel.com
+          Thank you for your business! | Sofia Padel | 123 Avenue Padel, Sofia | info@sofiapadel.com
         </Text>
       </Page>
     </Document>
