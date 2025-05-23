@@ -3,11 +3,9 @@ import { getFirestore, doc, getDoc } from "firebase/firestore";
 import nodemailer from "nodemailer";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
+import { InvoicePDF } from "../../components/pdf/InvoicePDF"; // Adjust path as needed
 
-// --- React PDF Invoice Component ---
-import { InvoicePDF } from "../../components/pdf/InvoicePDF"; // (see below for this component's code)
-
-// --- Firebase config (client SDK) ---
+// Firebase config
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -25,7 +23,6 @@ if (!getApps().length) {
 }
 const db = getFirestore(firebaseApp);
 
-// --- Main API Handler ---
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ message: "Method Not Allowed" });
