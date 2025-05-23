@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Order Confirmation</title>
+  <style>
+    body {
+      font-family: 'Inter', Arial, sans-serif;
+      background: #f7f7f7;
+      color: #1a4744;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 520px;
+      margin: 32px auto;
+      background: #fff;
+      border-radius: 12px;
+      padding: 32px 24px;
+      box-shadow: 0 4px 24px rgba(26, 71, 68, 0.09);
+      border: 1px solid #e5e5e5;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    .header h1 {
+      color: #20a799;
+      margin: 0 0 8px 0;
+      font-size: 2em;
+      font-weight: 700;
+    }
+    .section-title {
+      font-size: 1.1em;
+      font-weight: 600;
+      color: #1a857c;
+      margin-top: 32px;
+      margin-bottom: 8px;
+    }
+    .order-summary, .shipping-info, .payment-info {
+      background: #f0fdfb;
+      border-radius: 8px;
+      padding: 16px 20px;
+      margin-bottom: 16px;
+      border: 1px solid #ccfbf7;
+    }
+    .order-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 1em;
+      color: #196c65;
+    }
+    .order-item:last-child {
+      margin-bottom: 0;
+    }
+    .totals {
+      border-top: 1px solid #e5e5e5;
+      margin-top: 12px;
+      padding-top: 12px;
+      font-size: 1.1em;
+    }
+    .totals .row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 6px;
+      color: #404040;
+    }
+    .totals .row.total {
+      font-weight: bold;
+      color: #20a799;
+      font-size: 1.2em;
+    }
+    .info-label {
+      color: #666666;
+      font-size: 0.97em;
+      margin-bottom: 2px;
+    }
+    .info-value {
+      font-weight: 500;
+      color: #1a4744;
+      margin-bottom: 6px;
+    }
+    .footer {
+      text-align: center;
+      color: #818181;
+      font-size: 0.98em;
+      margin-top: 32px;
+    }
+    a {
+      color: #20a799;
+      text-decoration: none;
+    }
+    @media (max-width: 600px) {
+      .container {
+        padding: 18px 4vw;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Order Confirmed!</h1>
+      <p style="color:#434343;">Thank you for your order, <strong>{{customerName}}</strong>.<br>We’ll start processing it right away.</p>
+    </div>
+
+    <div class="section-title">Order Summary</div>
+    <div class="order-summary">
+      {{#each items}}
+      <div class="order-item">
+        <span><strong>{{brand}}</strong> {{name}} × {{quantity}}</span>
+        <span>€{{itemTotal}}</span>
+      </div>
+      {{/each}}
+      <div class="totals">
+        <div class="row">
+          <span>Subtotal</span>
+          <span>€{{subtotal}}</span>
+        </div>
+        <div class="row">
+          <span>Shipping</span>
+          <span>{{shippingCostDisplay}}</span>
+        </div>
+        <div class="row total">
+          <span>Total</span>
+          <span>€{{total}}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="section-title">Shipping Information</div>
+    <div class="shipping-info">
+      <div class="info-label">Name</div>
+      <div class="info-value">{{customerName}}</div>
+      <div class="info-label">Address</div>
+      <div class="info-value">{{address}}, {{city}}, {{postalCode}}</div>
+      <div class="info-label">Phone</div>
+      <div class="info-value">{{phone}}</div>
+      <div class="info-label">Delivery Option</div>
+      <div class="info-value">{{deliveryOptionDisplay}}</div>
+    </div>
+
+    <div class="section-title">Payment Method</div>
+    <div class="payment-info">
+      <div class="info-label">Payment</div>
+      <div class="info-value">{{paymentMethodDisplay}}</div>
+    </div>
+
+    <div class="footer">
+      By placing your order, you agree to our<br>
+      <a href="https://sofia-padel.vercel.app/terms">Terms of Service</a>
+      and
+      <a href="https://sofia-padel.vercel.app/privacy">Privacy Policy</a>.
+      <br><br>
+      <strong>Sofia Padel</strong> &mdash; Thank you for shopping with us!
+    </div>
+  </div>
+</body>
+</html>
