@@ -1,11 +1,10 @@
-// Dependencies
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 const handlebars = require('handlebars');
 const fs = require('fs');
 const path = require('path');
 
-// Initialize Firebase Admin SDK (do this only once in your app)
+// Initialize Firebase Admin SDK once
 if (!admin.apps.length) {
   admin.initializeApp({
     credential: admin.credential.applicationDefault(), // or use serviceAccount
@@ -13,7 +12,7 @@ if (!admin.apps.length) {
 }
 const db = admin.firestore();
 
-// Load the HTML template (save your template as 'orderConfirmationTemplate.html' in the same directory)
+// Read the HTML template from /public folder (serverless compatible)
 const templateSource = fs.readFileSync(
   path.join(process.cwd(), 'public', 'orderConfirmationTemplate.html'),
   'utf8'
@@ -44,18 +43,16 @@ async function sendOrderConfirmationEmail(orderId) {
 
     // Prepare items array for template
     const items = (order.items || []).map(item => ({
-      brand: item.name, // Your DB uses 'name' for brand in the first item
-      name: item.name === 'Bullpadel' ? '' : item.name, // If name is 'Bullpadel', it's a brand, else it's a product name
+      brand: item.name,
+      name: item.name === 'Bullpadel' ? '' : item.name,
       quantity: item.quantity,
       itemTotal: (item.price * item.quantity).toFixed(2),
     }));
 
-    // If you want to display both brand and model, you may need to adjust your data model
-
     // Prepare template data
     const templateData = {
       customerName: `${order.first_name} ${order.last_name}`,
-      items: items,
+      items,
       subtotal: order.total_amount ? order.total_amount.toFixed(2) : '0.00',
       shippingCostDisplay: order.shipping_cost > 0 ? '€' + order.shipping_cost.toFixed(2) : 'FREE',
       total: order.total_amount ? order.total_amount.toFixed(2) : '0.00',
@@ -64,7 +61,7 @@ async function sendOrderConfirmationEmail(orderId) {
       postalCode: order.postal_code,
       phone: order.phone,
       deliveryOptionDisplay: order.delivery_option === 'delivery' ? 'Delivery to address' : 'Pick up from address',
-      paymentMethodDisplay: order.payment_method === 'card' ? 'Pay by Card on Delivery' : 'Cash on Delivery'
+      paymentMethodDisplay: order.payment_method === 'card' ? 'Pay by Card on Delivery' : 'Cash on Delivery',
     };
 
     // Generate the HTML email content
@@ -86,7 +83,23 @@ async function sendOrderConfirmationEmail(orderId) {
   }
 }
 
-// Example usage (for testing):
-// sendOrderConfirmationEmail('dxfFfyev83WXxRVU4IEk');
+// Default export required by Next.js API routes
+module.exports = async function handler(req, res) {
+  if (req.method !== 'POST') {
+    res.status(405).json({ message: 'Method Not Allowed' });
+    return;
+  }
 
-module.exports = { sendOrderConfirmationEmail };
+  const { orderId } = req.body;
+  if (!orderId) {
+    res.status(400).json({ message: 'Missing orderId in request body' });
+    return;
+  }
+
+  try {
+    await sendOrderConfirmationEmail(orderId);
+    res.status(200).json({ message: 'Order confirmation email sent!' });
+  } catch (error) {
+    res.status(500).json({ message: 'Internal server error', error: error.message });
+  }
+};
