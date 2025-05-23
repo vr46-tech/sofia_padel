@@ -43,32 +43,64 @@ const transporter = nodemailer.createTransport({
 });
 
 /**
- * Helper: Prepare items array for template, fetching product names from products collection
+ * Helper: Fetch product names from products collection using product_id
+ * @param {*} db - Firestore database instance
+ * @param {Array} orderItems - Array of order items from the order document
+ * @returns {Array} - Array of items with actual product names from products collection
  */
 async function prepareItemsWithProductNames(db, orderItems) {
   const itemsWithNames = [];
+  
   for (const item of orderItems) {
-    let productName = item.name; // fallback
+    let displayName = "Unknown Product"; // default fallback
+    let brand = "";
+    
     try {
       if (item.product_id) {
+        console.log(`Fetching product data for product_id: ${item.product_id}`);
+        
+        // Fetch the product document from products collection
         const productDocRef = doc(db, "products", item.product_id);
         const productDoc = await getDoc(productDocRef);
+        
         if (productDoc.exists()) {
           const productData = productDoc.data();
-          if (productData && productData.name) {
-            productName = productData.name; // <-- Use the product's name from products collection
+          console.log(`Product found:`, productData);
+          
+          // Use the product name from the products collection (e.g., "Hack 04 Hybrid 2025")
+          if (productData.name) {
+            displayName = productData.name;
           }
+          
+          // Optionally, you can also get brand info if stored separately
+          if (productData.brand_name) {
+            brand = productData.brand_name;
+          }
+        } else {
+          console.log(`Product not found for product_id: ${item.product_id}`);
+          // Use the name from order item as fallback
+          displayName = item.name || "Unknown Product";
         }
+      } else {
+        console.log(`No product_id found for item:`, item);
+        // Use the name from order item as fallback
+        displayName = item.name || "Unknown Product";
       }
     } catch (error) {
-      // fallback to order item name
+      console.error(`Error fetching product for product_id ${item.product_id}:`, error);
+      // Use the name from order item as fallback
+      displayName = item.name || "Unknown Product";
     }
+    
     itemsWithNames.push({
-      name: productName,
+      brand: brand,
+      name: displayName, // This will be the actual product name from products collection
       quantity: item.quantity,
       itemTotal: (item.price * item.quantity).toFixed(2),
     });
   }
+  
+  console.log(`Prepared items with product names:`, itemsWithNames);
   return itemsWithNames;
 }
 
@@ -77,50 +109,64 @@ async function prepareItemsWithProductNames(db, orderItems) {
  * @param {string} orderId - Firestore document ID for the order
  */
 async function sendOrderConfirmationEmail(orderId) {
-  // Fetch order data from Firestore
-  const orderDocRef = doc(db, "orders", orderId);
-  const orderDoc = await getDoc(orderDocRef);
-  if (!orderDoc.exists()) throw new Error("Order not found");
-  const order = orderDoc.data();
+  try {
+    console.log(`Starting email confirmation for order: ${orderId}`);
+    
+    // Fetch order data from Firestore
+    const orderDocRef = doc(db, "orders", orderId);
+    const orderDoc = await getDoc(orderDocRef);
+    
+    if (!orderDoc.exists()) {
+      throw new Error("Order not found");
+    }
+    
+    const order = orderDoc.data();
+    console.log(`Order data fetched:`, order);
 
-  // Prepare items array with product names from products collection
-  const items = await prepareItemsWithProductNames(db, order.items || []);
+    // Prepare items array with actual product names from products collection
+    const items = await prepareItemsWithProductNames(db, order.items || []);
 
-  // Prepare template data
-  const templateData = {
-    customerName: `${order.first_name} ${order.last_name}`,
-    items: items,
-    subtotal: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
-    shippingCostDisplay:
-      order.shipping_cost > 0 ? "€" + order.shipping_cost.toFixed(2) : "FREE",
-    total: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
-    address: order.address,
-    city: order.city,
-    postalCode: order.postal_code,
-    phone: order.phone,
-    deliveryOptionDisplay:
-      order.delivery_option === "delivery"
-        ? "Delivery to address"
-        : "Pick up from address",
-    paymentMethodDisplay:
-      order.payment_method === "card"
-        ? "Pay by Card on Delivery"
-        : "Cash on Delivery",
-  };
+    // Prepare template data
+    const templateData = {
+      customerName: `${order.first_name} ${order.last_name}`,
+      items: items,
+      subtotal: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
+      shippingCostDisplay:
+        order.shipping_cost > 0 ? "€" + order.shipping_cost.toFixed(2) : "FREE",
+      total: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
+      address: order.address,
+      city: order.city,
+      postalCode: order.postal_code,
+      phone: order.phone,
+      deliveryOptionDisplay:
+        order.delivery_option === "delivery"
+          ? "Delivery to address"
+          : "Pick up from address",
+      paymentMethodDisplay:
+        order.payment_method === "card"
+          ? "Pay by Card on Delivery"
+          : "Cash on Delivery",
+    };
 
-  // Generate the HTML email content
-  const htmlContent = template(templateData);
+    console.log(`Template data prepared:`, templateData);
 
-  // Send the email
-  await transporter.sendMail({
-    from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
-    to: order.user_email,
-    subject: "Order Confirmation - Sofia Padel",
-    html: htmlContent,
-  });
+    // Generate the HTML email content
+    const htmlContent = template(templateData);
 
-  console.log(`Order confirmation email sent to ${order.user_email}`);
-  return true;
+    // Send the email
+    await transporter.sendMail({
+      from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
+      to: order.user_email,
+      subject: "Order Confirmation - Sofia Padel",
+      html: htmlContent,
+    });
+
+    console.log(`Order confirmation email sent to ${order.user_email}`);
+    return true;
+  } catch (error) {
+    console.error("Error in sendOrderConfirmationEmail:", error);
+    throw error;
+  }
 }
 
 // Default export required for Next.js API route
@@ -137,12 +183,14 @@ export default async function handler(req, res) {
   }
 
   try {
+    console.log(`Processing order confirmation for: ${orderId}`);
     await sendOrderConfirmationEmail(orderId);
     res.status(200).json({ message: "Order confirmation email sent!" });
   } catch (error) {
     console.error("Error sending order confirmation email:", error);
-    res
-      .status(500)
-      .json({ message: "Internal server error", error: error.message });
+    res.status(500).json({ 
+      message: "Internal server error", 
+      error: error.message 
+    });
   }
 }
