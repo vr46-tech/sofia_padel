@@ -40,6 +40,10 @@ async function getNextInvoiceNumber() {
 }
 
 export default async function handler(req, res) {
+  const apiKey = req.headers['x-api-key'];
+  if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
+    return res.status(401).json({ message: "Unauthorized" });
+  
   if (req.method !== "POST") {
     res.status(405).json({ message: "Method Not Allowed" });
     return;
