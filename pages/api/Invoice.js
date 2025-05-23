@@ -1,11 +1,10 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, getDoc, collection, addDoc, Timestamp } from "firebase/firestore";
+import { getFirestore, doc, getDoc, collection, addDoc, Timestamp, runTransaction } from "firebase/firestore";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import nodemailer from "nodemailer";
 import { InvoicePDF } from "../../components/pdf/InvoicePDF";
 
-// Firebase config and initialization (client SDK)
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -22,13 +21,30 @@ if (!getApps().length) {
 }
 const db = getFirestore(firebaseApp);
 
+// Helper to get the next unique invoice number
+async function getNextInvoiceNumber() {
+  const counterRef = doc(db, "config", "invoiceCounter");
+  let newNumber;
+  await runTransaction(db, async (transaction) => {
+    const counterDoc = await transaction.get(counterRef);
+    let current = 100000001; // 0100000001
+    if (counterDoc.exists()) {
+      current = counterDoc.data().current || current;
+    }
+    newNumber = current;
+    transaction.set(counterRef, { current: current + 1 }, { merge: true });
+  });
+  // Format as string with leading zeros
+  return newNumber.toString().padStart(10, "0");
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     res.status(405).json({ message: "Method Not Allowed" });
     return;
   }
 
-  const { orderId } = req.body;
+  const { orderId, currency = "BGN" } = req.body;
   if (!orderId) {
     res.status(400).json({ message: "Missing orderId in request body" });
     return;
@@ -73,7 +89,8 @@ export default async function handler(req, res) {
     const vatAmount = totalBeforeVAT * 0.2;
     const total = totalBeforeVAT + vatAmount;
 
-    const invoiceNumber = `INV-${orderId.slice(-6).toUpperCase()}`;
+    // Generate unique, sequential invoice number
+    const invoiceNumber = await getNextInvoiceNumber();
     const issueDate = new Date().toISOString().slice(0, 10);
 
     // Generate PDF buffer
@@ -102,6 +119,8 @@ export default async function handler(req, res) {
             ? "Pay by Card on Delivery"
             : "Cash on Delivery"
         }
+        currency={currency}
+        orderReference={orderId}
       />
     );
 
@@ -111,6 +130,7 @@ export default async function handler(req, res) {
     // Store invoice in Firestore
     const invoiceDoc = {
       orderId,
+      orderReference: orderId,
       user_email: order.user_email,
       customer: {
         name: `${order.first_name} ${order.last_name}`,
@@ -137,6 +157,7 @@ export default async function handler(req, res) {
         order.payment_method === "card"
           ? "Pay by Card on Delivery"
           : "Cash on Delivery",
+      currency,
       createdAt: Timestamp.now(),
       pdfBase64, // Store PDF as base64 string
     };
@@ -158,7 +179,7 @@ export default async function handler(req, res) {
       from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
       to: order.user_email,
       subject: "Your Invoice - Sofia Padel",
-      text: "Thank you for your purchase! Your invoice is attached.",
+      text: `Thank you for your purchase! Your invoice is attached. Your order reference is: ${orderId}`,
       attachments: [
         {
           filename: `${invoiceNumber}.pdf`,
