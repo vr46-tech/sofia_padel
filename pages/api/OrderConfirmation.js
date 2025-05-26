@@ -32,7 +32,7 @@ const templateSource = fs.readFileSync(
 const template = handlebars.compile(templateSource);
 
 // Configure Nodemailer SMTP transport
-const transporter = nodemailer.createTransport({
+const transporter = nodemailer.createTransporter({
   host: process.env.SMTP_HOST,
   port: process.env.SMTP_PORT,
   secure: true, // true for 465, false for 587
@@ -67,6 +67,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
         displayName = item.name || "Unknown Product";
       }
     } catch (error) {
+      console.error("Error fetching product data:", error);
       displayName = item.name || "Unknown Product";
     }
     itemsWithNames.push({
@@ -84,26 +85,34 @@ async function prepareItemsWithProductNames(db, orderItems) {
  * Send order confirmation email for a given orderId
  */
 async function sendOrderConfirmationEmail(orderId) {
+  console.log(`Processing order confirmation for order: ${orderId}`);
+  
   const orderDocRef = doc(db, "orders", orderId);
   const orderDoc = await getDoc(orderDocRef);
-  if (!orderDoc.exists()) throw new Error("Order not found");
+  if (!orderDoc.exists()) {
+    throw new Error(`Order not found: ${orderId}`);
+  }
   const order = orderDoc.data();
+
+  console.log(`Order found, customer: ${order.first_name} ${order.last_name}`);
 
   // Prepare items array with product names and images from products collection
   const items = await prepareItemsWithProductNames(db, order.items || []);
+
+  // Calculate shipping cost for template (using the same logic as frontend)
+  const shippingCost = order.total_amount >= 50 ? 0 : 5.99;
 
   // Prepare template data
   const templateData = {
     customerName: `${order.first_name} ${order.last_name}`,
     items: items,
-    subtotal: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
-    shippingCostDisplay:
-      order.shipping_cost > 0 ? "€" + order.shipping_cost.toFixed(2) : "FREE",
+    subtotal: order.total_amount ? (order.total_amount - shippingCost).toFixed(2) : "0.00",
+    shippingCostDisplay: shippingCost > 0 ? "€" + shippingCost.toFixed(2) : "FREE",
     total: order.total_amount ? order.total_amount.toFixed(2) : "0.00",
-    address: order.address,
-    city: order.city,
-    postalCode: order.postal_code,
-    phone: order.phone,
+    address: order.address || "",
+    city: order.city || "",
+    postalCode: order.postal_code || "",
+    phone: order.phone || "",
     deliveryOptionDisplay:
       order.delivery_option === "delivery"
         ? "Delivery to address"
@@ -113,6 +122,8 @@ async function sendOrderConfirmationEmail(orderId) {
         ? "Pay by Card on Delivery"
         : "Cash on Delivery",
   };
+
+  console.log(`Generating email for: ${order.user_email}`);
 
   // Generate the HTML email content
   const htmlContent = template(templateData);
@@ -125,46 +136,67 @@ async function sendOrderConfirmationEmail(orderId) {
     html: htmlContent,
   });
 
+  console.log(`Order confirmation email sent successfully to: ${order.user_email}`);
   return true;
 }
 
 // Default export required for Next.js API route
 export default async function handler(req, res) {
-  // Always set CORS headers
+  console.log(`${req.method} request to /api/OrderConfirmation`);
+
+  // Always set CORS headers for all responses
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
 
   // Handle preflight
   if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS preflight request');
     res.status(204).end();
     return;
   }
 
   if (req.method !== "POST") {
+    console.log(`Method ${req.method} not allowed`);
     res.status(405).json({ message: "Method Not Allowed" });
     return;
   }
 
-  // Optional: API key check (uncomment if you want API key protection)
-  // const apiKey = req.headers['x-api-key'];
-  // if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
-  //   return res.status(401).json({ message: "Unauthorized" });
-  // }
+  // Extract orderId from request body (handle both simple and complex payloads)
+  let orderId;
+  try {
+    if (typeof req.body === 'string') {
+      const parsed = JSON.parse(req.body);
+      orderId = parsed.orderId;
+    } else {
+      orderId = req.body.orderId;
+    }
+  } catch (parseError) {
+    console.error('Error parsing request body:', parseError);
+    res.status(400).json({ message: "Invalid request body" });
+    return;
+  }
 
-  const { orderId } = req.body;
   if (!orderId) {
+    console.log('Missing orderId in request body:', req.body);
     res.status(400).json({ message: "Missing orderId in request body" });
     return;
   }
 
+  console.log(`Processing order confirmation for orderId: ${orderId}`);
+
   try {
     await sendOrderConfirmationEmail(orderId);
-    res.status(200).json({ message: "Order confirmation email sent!" });
+    res.status(200).json({ 
+      message: "Order confirmation email sent successfully!",
+      orderId: orderId 
+    });
   } catch (error) {
+    console.error("Order confirmation error:", error);
     res.status(500).json({
       message: "Internal server error",
       error: error.message,
+      orderId: orderId
     });
   }
 }
