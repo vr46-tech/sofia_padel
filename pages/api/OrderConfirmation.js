@@ -132,63 +132,67 @@ return true;
 // Default export required for Next.js API route
 export default async function handler(req, res) {
 
- // Log incoming request details
-console.log('=== INCOMING REQUEST ===');
-console.log('Method:', req.method);
-console.log('URL:', req.url);
-console.log('Headers:', JSON.stringify(req.headers, null, 2));
-console.log('Body:', JSON.stringify(req.body, null, 2));
-console.log('Query:', JSON.stringify(req.query, null, 2));
- 
-// Always set CORS headers
-res.setHeader('Access-Control-Allow-Origin', '*');
-res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
+// 1. Set CORS headers FIRST
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
 
-// Handle preflight OPTIONS request (CRITICAL - you commented this out!)
+  // 2. Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
     console.log('Handling OPTIONS preflight request');
     res.status(204).end();
     return;
   }
 
-  // Check if method is POST
+  // 3. Log request details for debugging
+  console.log('Incoming request:', {
+    method: req.method,
+    url: req.url,
+    headers: req.headers,
+    body: req.body
+  });
+
+  // 4. Validate HTTP method
   if (req.method !== 'POST') {
-    console.log(`❌ Method ${req.method} not allowed. Expected POST.`);
-    res.status(405).json({ 
-      message: "Method Not Allowed", 
-      received_method: req.method,
-      expected_method: "POST" 
+    console.error(`Method ${req.method} not allowed`);
+    return res.status(405).json({ 
+      error: 'Method Not Allowed',
+      allowed_methods: ['POST']
     });
-    return;
   }
 
-// API key validation with detailed logging
+  // 5. Validate API key
   const apiKey = req.headers['x-api-key'];
-  console.log('API Key received:', apiKey ? 'Yes' : 'No');
-  console.log('Expected API Key set:', process.env.VERCEL_API_KEY ? 'Yes' : 'No');
-  
   if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
-    console.log('❌ API key validation failed');
-    console.log('Received key:', apiKey);
-    console.log('Expected key exists:', !!process.env.VERCEL_API_KEY);
+    console.error('Invalid/missing API key:', {
+      received: apiKey,
+      expected: process.env.VERCEL_API_KEY ? '***' : 'NOT_SET'
+    });
     return res.status(401).json({ 
-      message: "Unauthorized",
-      details: "Missing or invalid x-api-key header" 
+      error: 'Unauthorized',
+      details: 'Valid x-api-key header required'
     });
   }
 
-// Validate request body
-  const { orderId } = req.body || {};
-  console.log('OrderId extracted:', orderId);
-  
-  if (!orderId) {
-    console.log('❌ Missing orderId in request body');
-    res.status(400).json({ 
-      message: "Missing orderId in request body",
-      received_body: req.body 
+  // 6. Validate request body
+  let orderId;
+  try {
+    orderId = typeof req.body === 'string' 
+      ? JSON.parse(req.body).orderId 
+      : req.body?.orderId;
+  } catch (e) {
+    console.error('Invalid request body:', req.body);
+    return res.status(400).json({ 
+      error: 'Invalid request body',
+      expected_format: { orderId: "string" }
     });
-    return;
+  }
+
+  if (!orderId) {
+    console.error('Missing orderId in request body');
+    return res.status(400).json({ 
+      error: 'Missing required field: orderId'
+    });
   }
 
   console.log('✅ All validations passed. Processing order:', orderId);
