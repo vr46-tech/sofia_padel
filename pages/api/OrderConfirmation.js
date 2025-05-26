@@ -129,17 +129,18 @@ html: htmlContent,
 return true;
 }
 
+function setCORSHeaders(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*'); // Or your frontend domain in production
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key, Authorization');
+}
+
 // Default export required for Next.js API route
 export default async function handler(req, res) {
+setCORSHeaders(res);
 
-// 1. Set CORS headers FIRST
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
-
-  // 2. Handle preflight requests immediately
+  // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
-    console.log('Handling OPTIONS preflight request');
     res.status(204).end();
     return;
   }
@@ -152,13 +153,10 @@ export default async function handler(req, res) {
     body: req.body
   });
 
-  // 4. Validate HTTP method
   if (req.method !== 'POST') {
-    console.error(`Method ${req.method} not allowed`);
-    return res.status(405).json({ 
-      error: 'Method Not Allowed',
-      allowed_methods: ['POST']
-    });
+    setCORSHeaders(res);
+    res.status(405).json({ error: 'Method Not Allowed' });
+    return;
   }
 
   // 5. Validate API key
@@ -169,6 +167,7 @@ export default async function handler(req, res) {
       expected: process.env.VERCEL_API_KEY ? '***' : 'NOT_SET'
     });
     return res.status(401).json({ 
+      setCORSHeaders(res);
       error: 'Unauthorized',
       details: 'Valid x-api-key header required'
     });
@@ -189,8 +188,9 @@ export default async function handler(req, res) {
   }
 
   if (!orderId) {
-    console.error('Missing orderId in request body');
-    return res.status(400).json({ 
+  setCORSHeaders(res);
+  console.error('Missing orderId in request body');
+  return res.status(400).json({ 
       error: 'Missing required field: orderId'
     });
   }
@@ -201,6 +201,7 @@ try {
 await sendOrderConfirmationEmail(orderId);
 res.status(200).json({ message: "Order confirmation email sent!" });
 } catch (error) {
+setCORSHeaders(res);
 res.status(500).json({
 message: "Internal server error",
 error: error.message,
