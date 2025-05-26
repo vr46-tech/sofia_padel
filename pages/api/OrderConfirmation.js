@@ -140,10 +140,10 @@ export default async function handler(req, res) {
 setCORSHeaders(res);
 
   // Handle preflight OPTIONS request
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
-  }
+ // if (req.method === 'OPTIONS') {
+ //   res.status(204).end();
+//    return;
+//  }
 
   // 3. Log request details for debugging
   console.log('Incoming request:', {
