@@ -131,33 +131,67 @@ return true;
 
 // Default export required for Next.js API route
 export default async function handler(req, res) {
+
+ // Log incoming request details
+console.log('=== INCOMING REQUEST ===');
+console.log('Method:', req.method);
+console.log('URL:', req.url);
+console.log('Headers:', JSON.stringify(req.headers, null, 2));
+console.log('Body:', JSON.stringify(req.body, null, 2));
+console.log('Query:', JSON.stringify(req.query, null, 2));
+ 
 // Always set CORS headers
 res.setHeader('Access-Control-Allow-Origin', '*');
 res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
 res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
 
-// Handle preflight
-//if (req.method === 'OPTIONS') {
-//res.status(204).end();
-//return;
-//}
+// Handle preflight OPTIONS request (CRITICAL - you commented this out!)
+  if (req.method === 'OPTIONS') {
+    console.log('Handling OPTIONS preflight request');
+    res.status(204).end();
+    return;
+  }
 
-if (req.method !== "POST") {
-res.status(405).json({ message: "Method Not Allowed" });
-return;
-}
+  // Check if method is POST
+  if (req.method !== 'POST') {
+    console.log(`❌ Method ${req.method} not allowed. Expected POST.`);
+    res.status(405).json({ 
+      message: "Method Not Allowed", 
+      received_method: req.method,
+      expected_method: "POST" 
+    });
+    return;
+  }
 
-// Optional: API key check (uncomment if you want API key protection)
- const apiKey = req.headers['x-api-key'];
- if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
- return res.status(401).json({ message: "Unauthorized" });
- }
+// API key validation with detailed logging
+  const apiKey = req.headers['x-api-key'];
+  console.log('API Key received:', apiKey ? 'Yes' : 'No');
+  console.log('Expected API Key set:', process.env.VERCEL_API_KEY ? 'Yes' : 'No');
+  
+  if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
+    console.log('❌ API key validation failed');
+    console.log('Received key:', apiKey);
+    console.log('Expected key exists:', !!process.env.VERCEL_API_KEY);
+    return res.status(401).json({ 
+      message: "Unauthorized",
+      details: "Missing or invalid x-api-key header" 
+    });
+  }
 
-const { orderId } = req.body;
-if (!orderId) {
-res.status(400).json({ message: "Missing orderId in request body" });
-return;
-}
+// Validate request body
+  const { orderId } = req.body || {};
+  console.log('OrderId extracted:', orderId);
+  
+  if (!orderId) {
+    console.log('❌ Missing orderId in request body');
+    res.status(400).json({ 
+      message: "Missing orderId in request body",
+      received_body: req.body 
+    });
+    return;
+  }
+
+  console.log('✅ All validations passed. Processing order:', orderId);
 
 try {
 await sendOrderConfirmationEmail(orderId);
