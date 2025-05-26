@@ -166,8 +166,8 @@ setCORSHeaders(res);
       received: apiKey,
       expected: process.env.VERCEL_API_KEY ? '***' : 'NOT_SET'
     });
-    return res.status(401).json({ 
-      setCORSHeaders(res);
+    setCORSHeaders(res);
+    return res.status(401).json({       
       error: 'Unauthorized',
       details: 'Valid x-api-key header required'
     });
@@ -180,6 +180,7 @@ setCORSHeaders(res);
       ? JSON.parse(req.body).orderId 
       : req.body?.orderId;
   } catch (e) {
+    setCORSHeaders(res);
     console.error('Invalid request body:', req.body);
     return res.status(400).json({ 
       error: 'Invalid request body',
