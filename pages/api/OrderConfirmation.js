@@ -129,15 +129,16 @@ html: htmlContent,
 return true;
 }
 
-function setCORSHeaders(res) {
+function setCORSHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key, Authorization');
 }
 
+
 // Default export required for Next.js API route
 export default async function handler(req, res) {
-setCORSHeaders(res);
+ setCORSHeaders(req, res);
 
   // Handle preflight OPTIONS request
   if (req.method === 'OPTIONS') {
@@ -154,7 +155,7 @@ setCORSHeaders(res);
   });
 
   if (req.method !== 'POST') {
-    setCORSHeaders(res);
+     setCORSHeaders(req, res);
     res.status(405).json({ error: 'Method Not Allowed' });
     return;
   }
@@ -166,7 +167,7 @@ setCORSHeaders(res);
       received: apiKey,
       expected: process.env.VERCEL_API_KEY ? '***' : 'NOT_SET'
     });
-    setCORSHeaders(res);
+     setCORSHeaders(req, res);
     return res.status(401).json({       
       error: 'Unauthorized',
       details: 'Valid x-api-key header required'
@@ -180,7 +181,7 @@ setCORSHeaders(res);
       ? JSON.parse(req.body).orderId 
       : req.body?.orderId;
   } catch (e) {
-    setCORSHeaders(res);
+     setCORSHeaders(req, res);
     console.error('Invalid request body:', req.body);
     return res.status(400).json({ 
       error: 'Invalid request body',
@@ -189,7 +190,7 @@ setCORSHeaders(res);
   }
 
   if (!orderId) {
-  setCORSHeaders(res);
+   setCORSHeaders(req, res);
   console.error('Missing orderId in request body');
   return res.status(400).json({ 
       error: 'Missing required field: orderId'
