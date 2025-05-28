@@ -18,7 +18,7 @@ if (!getApps().length) {
 }
 const db = getFirestore(firebaseApp);
 
-function setCORSHeaders(res) {
+function setCORSHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key, Authorization');
@@ -55,8 +55,7 @@ function calculateFinalPrice(product) {
 }
 
 export default async function handler(req, res) {
-  setCORSHeaders(res);
-
+  setCORSHeaders(req, res);
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -66,7 +65,7 @@ export default async function handler(req, res) {
   // GET /api/products?id=123    => get details for a single product
   try {
     if (req.method !== 'GET') {
-      setCORSHeaders(res);
+      setCORSHeaders(req, res);
       res.status(405).json({ error: 'Method Not Allowed' });
       return;
     }
@@ -77,7 +76,7 @@ export default async function handler(req, res) {
       // Single product details
       const productDoc = await getDoc(doc(db, "products", id));
       if (!productDoc.exists()) {
-        setCORSHeaders(res);
+        setCORSHeaders(req, res);
         res.status(404).json({ error: "Product not found" });
         return;
       }
@@ -97,7 +96,7 @@ export default async function handler(req, res) {
       res.status(200).json(products);
     }
   } catch (error) {
-    setCORSHeaders(res);
+    setCORSHeaders(req, res);
     res.status(500).json({ error: "Internal server error", details: error.message });
   }
 }
