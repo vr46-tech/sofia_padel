@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, collection, addDoc, doc, getDoc, updateDoc, runTransaction, Timestamp } from "firebase/firestore";
+import { getFirestore, collection, addDoc, doc, getDoc, updateDoc, runTransaction } from "firebase/firestore";
 
 // Firebase config (reuse your config)
 const firebaseConfig = {
@@ -48,14 +48,8 @@ export default async function handler(req, res) {
     return;
   }
 
-  // API key validation (optional, add if needed)
-  // const apiKey = req.headers['x-api-key'];
-  // if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
-  //   setCORSHeaders(req, res);
-  //   return res.status(401).json({ error: 'Unauthorized' });
-  // }
-
   try {
+    // Parse and validate input
     const {
       user_email,
       user_uid,
@@ -146,9 +140,14 @@ export default async function handler(req, res) {
     // Store order in Firestore
     const orderRef = await addDoc(collection(db, 'orders'), orderData);
 
-    // Optionally update user profile
+    // Check if user exists before updating
     if (user_uid) {
       const userRef = doc(db, 'users', user_uid);
+      const userSnap = await getDoc(userRef);
+      if (!userSnap.exists()) {
+        res.status(404).json({ error: `User not found: ${user_uid}` });
+        return;
+      }
       await updateDoc(userRef, {
         first_name,
         last_name,
