@@ -49,14 +49,21 @@ function calculateFinalPrice(product) {
     discountedPrice = +(product.price * (1 - discountPercent / 100)).toFixed(2);
   }
 
+  const vatRate = product.vat_rate || 0.20;
+  const netPrice = discounted ? discountedPrice : product.price;
+  const vatAmount = +(netPrice * vatRate).toFixed(2);
+  const grossPrice = +(netPrice + vatAmount).toFixed(2);
+
   return {
+    ...product,
     discounted,
     discount_percent: discountPercent,
-    discounted_price: discounted ? discountedPrice : null,
-    price: product.price,
+    price_net: product.price, // always the original net price
+    discounted_price_net: discounted ? discountedPrice : null, // discounted net, if applicable
+    vat_rate: vatRate,
+    vat_amount: vatAmount,
+    price_gross: grossPrice,
     currency: product.currency || "BGN",
-    vat_rate: product.vat_rate || 0.20,
-    ...product
   };
 }
 
