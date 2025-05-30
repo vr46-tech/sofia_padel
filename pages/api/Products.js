@@ -1,6 +1,13 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
 
+// Simple in-memory cache
+const cache = {
+  products: null,
+  productsTimestamp: 0,
+  ttl: 10 * 60 * 1000 // 10 minutes in milliseconds
+};
+
 // Firebase config (reuse your existing config)
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
@@ -25,7 +32,6 @@ function setCORSHeaders(req, res) {
 }
 
 function calculateFinalPrice(product) {
-  // Determine if discount is active
   const now = new Date();
   let discounted = false;
   let discountPercent = 0;
@@ -61,8 +67,6 @@ export default async function handler(req, res) {
     return;
   }
 
-  // GET /api/products           => list all products
-  // GET /api/products?id=123    => get details for a single product
   try {
     if (req.method !== 'GET') {
       setCORSHeaders(req, res);
@@ -73,7 +77,7 @@ export default async function handler(req, res) {
     const { id } = req.query;
 
     if (id) {
-      // Single product details
+      // Single product details (no cache for single product)
       const productDoc = await getDoc(doc(db, "products", id));
       if (!productDoc.exists()) {
         setCORSHeaders(req, res);
@@ -84,7 +88,18 @@ export default async function handler(req, res) {
       const result = calculateFinalPrice(product);
       res.status(200).json(result);
     } else {
-      // List all products
+      // List all products with server-side cache
+      const now = Date.now();
+      if (
+        cache.products &&
+        now - cache.productsTimestamp < cache.ttl
+      ) {
+        // Serve from cache
+        res.status(200).json(cache.products);
+        return;
+      }
+
+      // Fetch from Firestore and update cache
       const querySnapshot = await getDocs(collection(db, "products"));
       const products = querySnapshot.docs.map(doc => {
         const product = doc.data();
@@ -93,6 +108,10 @@ export default async function handler(req, res) {
           ...calculateFinalPrice(product)
         };
       });
+
+      cache.products = products;
+      cache.productsTimestamp = now;
+
       res.status(200).json(products);
     }
   } catch (error) {
