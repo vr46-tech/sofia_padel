@@ -104,6 +104,7 @@ export default async function handler(req, res) {
       if (discount_percent <= 0) {
         updateData.discounted = false;
         updateData.discount_percent = 0;
+        updateData.discount_price = 0;
         updateData.discount_start = null;
         updateData.discount_end = null;
         updateData.discount_reason = null;
