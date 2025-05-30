@@ -33,9 +33,16 @@ function setCORSHeaders(req, res) {
 
 function calculateFinalPrice(product) {
   const now = new Date();
+  const vatRate = product.vat_rate || 0.20;
+  const priceNet = product.price;
+  const vatAmount = +(priceNet * vatRate).toFixed(2);
+  const priceGross = +(priceNet + vatAmount).toFixed(2);
+
   let discounted = false;
   let discountPercent = 0;
-  let discountedPrice = product.price;
+  let discountedPriceNet = null;
+  let discountedPriceGross = null;
+  let vatAmountDiscounted = null;
 
   if (
     product.discounted &&
@@ -46,26 +53,26 @@ function calculateFinalPrice(product) {
   ) {
     discounted = true;
     discountPercent = product.discount_percent;
-    discountedPrice = +(product.price * (1 - discountPercent / 100)).toFixed(2);
+    discountedPriceNet = +(priceNet * (1 - discountPercent / 100)).toFixed(2);
+    vatAmountDiscounted = +(discountedPriceNet * vatRate).toFixed(2);
+    discountedPriceGross = +(discountedPriceNet + vatAmountDiscounted).toFixed(2);
   }
-
-  const vatRate = product.vat_rate || 0.20;
-  const netPrice = discounted ? discountedPrice : product.price;
-  const vatAmount = +(netPrice * vatRate).toFixed(2);
-  const grossPrice = +(netPrice + vatAmount).toFixed(2);
 
   return {
     ...product,
-    discounted,
-    discount_percent: discountPercent,
-    price_net: product.price, // always the original net price
-    discounted_price_net: discounted ? discountedPrice : null, // discounted net, if applicable
+    price_net: priceNet,
+    price_gross: priceGross,
+    discounted_price_net: discountedPriceNet,
+    discounted_price_gross: discountedPriceGross,
     vat_rate: vatRate,
     vat_amount: vatAmount,
-    price_gross: grossPrice,
-    currency: product.currency || "BGN",
+    vat_amount_discounted: vatAmountDiscounted,
+    discounted,
+    discount_percent: discountPercent,
+    currency: product.currency || "BGN"
   };
 }
+
 
 export default async function handler(req, res) {
   setCORSHeaders(req, res);
