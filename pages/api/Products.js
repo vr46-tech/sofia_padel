@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, getDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 
 // Simple in-memory cache
 const cache = {
@@ -73,7 +73,6 @@ function calculateFinalPrice(product) {
   };
 }
 
-
 export default async function handler(req, res) {
   setCORSHeaders(req, res);
   if (req.method === 'OPTIONS') {
@@ -82,52 +81,89 @@ export default async function handler(req, res) {
   }
 
   try {
-    if (req.method !== 'GET') {
-      setCORSHeaders(req, res);
-      res.status(405).json({ error: 'Method Not Allowed' });
+    // --- PUT: Update Discount Fields (Admin) ---
+    if (req.method === "PUT") {
+      const { id, discount_percent, discount_start, discount_end, discount_reason } = req.body;
+
+      if (!id || typeof discount_percent !== "number" || !discount_start) {
+        res.status(400).json({ error: "Missing required fields: id, discount_percent, discount_start" });
+        return;
+      }
+
+      const updateData = {
+        discount_percent,
+        discount_start,
+        discounted: discount_percent > 0,
+        updated_at: new Date().toISOString()
+      };
+
+      if (discount_end) updateData.discount_end = discount_end;
+      if (discount_reason) updateData.discount_reason = discount_reason;
+
+      // Remove discount if percent is 0 or negative
+      if (discount_percent <= 0) {
+        updateData.discounted = false;
+        updateData.discount_percent = 0;
+        updateData.discount_start = null;
+        updateData.discount_end = null;
+        updateData.discount_reason = null;
+      }
+
+      const productRef = doc(db, "products", id);
+      await updateDoc(productRef, updateData);
+
+      res.status(200).json({ success: true });
       return;
     }
 
-    const { id } = req.query;
+    // --- GET: Single or All Products ---
+    if (req.method === 'GET') {
+      const { id } = req.query;
 
-    if (id) {
-      // Single product details (no cache for single product)
-      const productDoc = await getDoc(doc(db, "products", id));
-      if (!productDoc.exists()) {
-        setCORSHeaders(req, res);
-        res.status(404).json({ error: "Product not found" });
-        return;
+      if (id) {
+        // Single product details (no cache for single product)
+        const productDoc = await getDoc(doc(db, "products", id));
+        if (!productDoc.exists()) {
+          setCORSHeaders(req, res);
+          res.status(404).json({ error: "Product not found" });
+          return;
+        }
+        const product = productDoc.data();
+        const result = calculateFinalPrice(product);
+        res.status(200).json(result);
+      } else {
+        // List all products with server-side cache
+        const now = Date.now();
+        if (
+          cache.products &&
+          now - cache.productsTimestamp < cache.ttl
+        ) {
+          // Serve from cache
+          res.status(200).json(cache.products);
+          return;
+        }
+
+        // Fetch from Firestore and update cache
+        const querySnapshot = await getDocs(collection(db, "products"));
+        const products = querySnapshot.docs.map(doc => {
+          const product = doc.data();
+          return {
+            docId: doc.id,
+            ...calculateFinalPrice(product)
+          };
+        });
+
+        cache.products = products;
+        cache.productsTimestamp = now;
+
+        res.status(200).json(products);
       }
-      const product = productDoc.data();
-      const result = calculateFinalPrice(product);
-      res.status(200).json(result);
-    } else {
-      // List all products with server-side cache
-      const now = Date.now();
-      if (
-        cache.products &&
-        now - cache.productsTimestamp < cache.ttl
-      ) {
-        // Serve from cache
-        res.status(200).json(cache.products);
-        return;
-      }
-
-      // Fetch from Firestore and update cache
-      const querySnapshot = await getDocs(collection(db, "products"));
-      const products = querySnapshot.docs.map(doc => {
-        const product = doc.data();
-        return {
-          docId: doc.id,
-          ...calculateFinalPrice(product)
-        };
-      });
-
-      cache.products = products;
-      cache.productsTimestamp = now;
-
-      res.status(200).json(products);
+      return;
     }
+
+    // --- Method Not Allowed ---
+    setCORSHeaders(req, res);
+    res.status(405).json({ error: 'Method Not Allowed' });
   } catch (error) {
     setCORSHeaders(req, res);
     res.status(500).json({ error: "Internal server error", details: error.message });
