@@ -137,27 +137,25 @@ export default async function handler(req, res) {
       }
 
       // Log the Firestore path being queried
-      const productRef = doc(db, "products", item.product_id);
-      console.log("Firestore product path:", productRef.path);
+     const productRef = doc(db, "products", item.product_id);
+const productDoc = await getDoc(productRef);
 
-      const productDoc = await getDoc(productRef);
-
-      // Log existence check
-      console.log(
-        `Product fetch result for ID ${item.product_id}: exists=${productDoc.exists()}`
-      );
-
-      if (!productDoc.exists()) {
-        // Log all IDs in the products collection for debugging
-        const snapshot = await getDocs(collection(db, "products"));
-        const allIds = snapshot.docs.map(d => d.id);
-        console.error(
-          `Product not found: ${item.product_id}. Existing product IDs:`,
-          allIds
-        );
-        res.status(400).json({ error: `Product not found: ${item.product_id}` });
-        return;
-      }
+if (!productDoc.exists()) {
+  // Fallback: try to find by 'id' field
+  console.warn(`Direct lookup failed for product_id ${item.product_id}, trying query by 'id' field...`);
+  const querySnapshot = await getDocs(
+    query(collection(db, "products"), where("id", "==", item.product_id))
+  );
+  if (!querySnapshot.empty) {
+    const docSnap = querySnapshot.docs[0];
+    const product = docSnap.data();
+    // ...continue as before
+  } else {
+    // Not found by either method
+    res.status(400).json({ error: `Product not found: ${item.product_id}` });
+    return;
+  }
+}
 
       const product = productDoc.data();
       const productWithPricing = calculateFinalPrice(product);
