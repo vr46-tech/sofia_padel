@@ -64,7 +64,9 @@ async function prepareItemsWithProductNames(db, orderItems) {
 
         if (productDoc.exists()) {
           const productData = productDoc.data();
-          displayName = productData.name || displayName;
+          const brandName = productData.brand_name || "";
+          const modelName = productData.name || displayName;
+          displayName = brandName ? `${brandName} ${modelName}` : modelName;
           imageUrl = productData.image_url || imageUrl;
           console.log(`[OrderConfirmation] imageUrl for ${item.product_id}:`, imageUrl);
         } else {
@@ -74,7 +76,9 @@ async function prepareItemsWithProductNames(db, orderItems) {
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
             const productData = querySnapshot.docs[0].data();
-            displayName = productData.name || displayName;
+            const brandName = productData.brand_name || "";
+            const modelName = productData.name || displayName;
+            displayName = brandName ? `${brandName} ${modelName}` : modelName;
             imageUrl = productData.image_url || imageUrl;
             console.log(`[OrderConfirmation] imageUrl for ${item.product_id} (by 'id' field):`, imageUrl);
           } else {
@@ -94,6 +98,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
   }
   return itemsWithNames;
 }
+
 
 /**
  * Send order confirmation email for a given orderId
