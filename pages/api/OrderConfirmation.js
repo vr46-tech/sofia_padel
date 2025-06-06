@@ -64,6 +64,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
           const productData = productDoc.data();
           displayName = productData.name || displayName;
           imageUrl = productData.image_url || imageUrl;
+          console.log(`[OrderConfirmation] imageUrl for ${item.product_id}:`, imageUrl);
         } else {
           console.warn(`[OrderConfirmation] Product not found in Firestore: ${item.product_id}`);
         }
