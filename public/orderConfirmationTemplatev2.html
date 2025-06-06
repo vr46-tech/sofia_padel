@@ -305,14 +305,7 @@
                    </table>
                   </td>
                  </tr>
-                </table>
-                <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
-                 <tr>
-                  <td align="center" valign="top">
-                   <img src="https://cloudfilesdm.com/postcards/image-17459080507901-ded2df0e.jpeg" width="600" height="auto" alt="" style="display: block; outline: 0; line-height: 100%; -ms-interpolation-mode: bicubic; width: 100%; height: auto; border: 0;" />
-                  </td>
-                 </tr>
-                </table>
+                </table>                
                </td>
               </tr>
              </table>
@@ -388,7 +381,8 @@
                        </tr>
                       </table>
                      </td>
-                    </tr>
+                    </tr>					
+					{{#each items}}					
                     <tr>
                      <td>
                       <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
@@ -409,7 +403,7 @@
                                      <table class="pc-w620-width-100px" style="width: 100px;" border="0" cellpadding="0" cellspacing="0" role="presentation">
                                       <tr>
                                        <td align="left" valign="middle" style="border-radius: 6px 6px 6px 6px;">
-                                        <img src="https://cloudfilesdm.com/postcards/image-17459080511402-63ad8f07.png" class="pc-w620-width-100pc pc-w620-height-auto" width="100" height="auto" alt="" style="display: block; outline: 0; line-height: 100%; -ms-interpolation-mode: bicubic; width: 100%; height: auto; border-radius: 6px 6px 6px 6px; border: 0;" />
+                                        <img src="{{image_url}}" class="pc-w620-width-100pc pc-w620-height-auto" width="100" height="auto" alt="" style="display: block; outline: 0; line-height: 100%; -ms-interpolation-mode: bicubic; width: 100%; height: auto; border-radius: 6px 6px 6px 6px; border: 0;" />
                                        </td>
                                       </tr>
                                      </table>
@@ -504,6 +498,7 @@
                       </table>
                      </td>
                     </tr>
+					{{/each}}					
                     <tr>
                      <td>
                       <table width="100%" border="0" cellpadding="0" cellspacing="0" role="presentation">
@@ -1475,5 +1470,4 @@
   </tr>
  </table>
 </body>
-
 </html>
