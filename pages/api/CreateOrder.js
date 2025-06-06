@@ -24,6 +24,49 @@ function setCORSHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key, Authorization');
 }
 
+// Calculate final pricing for a product (same logic as in Products API)
+function calculateFinalPrice(product) {
+  const now = new Date();
+  const vatRate = product.vat_rate || 0.20;
+  const priceNet = product.price;
+  const vatAmount = +(priceNet * vatRate).toFixed(2);
+  const priceGross = +(priceNet + vatAmount).toFixed(2);
+
+  let discounted = false;
+  let discountPercent = 0;
+  let discountedPriceNet = null;
+  let discountedPriceGross = null;
+  let vatAmountDiscounted = null;
+
+  if (
+    product.discounted &&
+    product.discount_percent > 0 &&
+    product.discount_start &&
+    (!product.discount_end || new Date(product.discount_end) >= now) &&
+    new Date(product.discount_start) <= now
+  ) {
+    discounted = true;
+    discountPercent = product.discount_percent;
+    discountedPriceNet = +(priceNet * (1 - discountPercent / 100)).toFixed(2);
+    vatAmountDiscounted = +(discountedPriceNet * vatRate).toFixed(2);
+    discountedPriceGross = +(discountedPriceNet + vatAmountDiscounted).toFixed(2);
+  }
+
+  return {
+    ...product,
+    price_net: priceNet,
+    price_gross: priceGross,
+    discounted_price_net: discountedPriceNet,
+    discounted_price_gross: discountedPriceGross,
+    vat_rate: vatRate,
+    vat_amount: vatAmount,
+    vat_amount_discounted: vatAmountDiscounted,
+    discounted,
+    discount_percent: discountPercent,
+    currency: product.currency || "BGN"
+  };
+}
+
 async function generateOrderNumber() {
   return await runTransaction(db, async (transaction) => {
     const counterRef = doc(db, 'counters', 'orders');
@@ -74,10 +117,12 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Fetch product details for each item to get price, VAT, etc.
-    let subtotal = 0;
-    let vat_total = 0;
+    // Fetch product details and calculate pricing with VAT
+    let subtotal_net = 0;
+    let subtotal_gross = 0;
+    let total_vat_amount = 0;
     const orderItems = [];
+    
     for (const item of items) {
       // Each item: { product_id, quantity }
       const productDoc = await getDoc(doc(db, "products", item.product_id));
@@ -85,36 +130,71 @@ export default async function handler(req, res) {
         res.status(400).json({ error: `Product not found: ${item.product_id}` });
         return;
       }
+      
       const product = productDoc.data();
-      const price = product.discounted
-        ? (product.discounted_price ?? product.price)
-        : product.price;
-      const vat_rate = product.vat_rate ?? 0.20;
+      const productWithPricing = calculateFinalPrice(product);
+      
+      // Determine which price to use (discounted or regular)
+      const isDiscounted = productWithPricing.discounted && 
+                          productWithPricing.discounted_price_gross !== null;
+      
+      const unit_price_net = isDiscounted 
+        ? productWithPricing.discounted_price_net 
+        : productWithPricing.price_net;
+      
+      const unit_price_gross = isDiscounted 
+        ? productWithPricing.discounted_price_gross 
+        : productWithPricing.price_gross;
+      
+      const unit_vat_amount = isDiscounted 
+        ? productWithPricing.vat_amount_discounted 
+        : productWithPricing.vat_amount;
+      
       const quantity = item.quantity;
-      const itemSubtotal = price * quantity;
-      const itemVAT = +(itemSubtotal * vat_rate).toFixed(2);
-      subtotal += itemSubtotal;
-      vat_total += itemVAT;
+      const line_total_net = +(unit_price_net * quantity).toFixed(2);
+      const line_total_gross = +(unit_price_gross * quantity).toFixed(2);
+      const line_vat_amount = +(unit_vat_amount * quantity).toFixed(2);
+      
+      subtotal_net += line_total_net;
+      subtotal_gross += line_total_gross;
+      total_vat_amount += line_vat_amount;
 
       orderItems.push({
         product_id: item.product_id,
         name: product.name,
         quantity,
-        unit_price: price,
-        vat_rate,
-        vat_amount: itemVAT,
-        subtotal: itemSubtotal,
-        currency: product.currency || "BGN"
+        unit_price_net: unit_price_net,
+        unit_price_gross: unit_price_gross,
+        unit_vat_amount: unit_vat_amount,
+        vat_rate: productWithPricing.vat_rate,
+        line_total_net: line_total_net,
+        line_total_gross: line_total_gross,
+        line_vat_amount: line_vat_amount,
+        currency: productWithPricing.currency,
+        // Store discount info if applicable
+        discounted: isDiscounted,
+        discount_percent: isDiscounted ? productWithPricing.discount_percent : null,
+        original_price_net: productWithPricing.price_net,
+        original_price_gross: productWithPricing.price_gross
       });
     }
 
-    const total_before_vat = subtotal + shipping_cost;
-    const total_vat = +(vat_total).toFixed(2);
-    const total = +(total_before_vat + total_vat).toFixed(2);
+    // Calculate shipping VAT (assuming same rate as first product, or 20%)
+    const shipping_vat_rate = orderItems[0]?.vat_rate || 0.20;
+    const shipping_net = shipping_cost;
+    const shipping_vat_amount = +(shipping_net * shipping_vat_rate).toFixed(2);
+    const shipping_gross = +(shipping_net + shipping_vat_amount).toFixed(2);
+
+    // Calculate order totals
+    const order_subtotal_net = +subtotal_net.toFixed(2);
+    const order_subtotal_gross = +subtotal_gross.toFixed(2);
+    const order_total_vat = +(total_vat_amount + shipping_vat_amount).toFixed(2);
+    const order_total_net = +(order_subtotal_net + shipping_net).toFixed(2);
+    const order_total_gross = +(order_subtotal_gross + shipping_gross).toFixed(2);
 
     const order_number = await generateOrderNumber();
 
-    // Build order document
+    // Build comprehensive order document with VAT breakdown
     const orderData = {
       order_number,
       user_email,
@@ -128,10 +208,27 @@ export default async function handler(req, res) {
       postal_code,
       payment_method,
       items: orderItems,
-      shipping_cost,
-      subtotal: +subtotal.toFixed(2),
-      vat_total: total_vat,
-      total: total,
+      
+      // Pricing breakdown
+      subtotal_net: order_subtotal_net,
+      subtotal_gross: order_subtotal_gross,
+      subtotal_vat_amount: +total_vat_amount.toFixed(2),
+      
+      shipping_cost_net: shipping_net,
+      shipping_cost_gross: shipping_gross,
+      shipping_vat_amount: shipping_vat_amount,
+      shipping_vat_rate: shipping_vat_rate,
+      
+      total_net: order_total_net,
+      total_gross: order_total_gross,
+      total_vat_amount: order_total_vat,
+      
+      // Legacy fields for backward compatibility
+      shipping_cost: shipping_gross, // Keep for compatibility
+      subtotal: order_subtotal_gross, // Keep for compatibility
+      vat_total: order_total_vat, // Keep for compatibility
+      total: order_total_gross, // Keep for compatibility
+      
       currency: orderItems[0]?.currency || "BGN",
       status: 'pending',
       created_at: new Date().toISOString()
@@ -140,7 +237,7 @@ export default async function handler(req, res) {
     // Store order in Firestore
     const orderRef = await addDoc(collection(db, 'orders'), orderData);
 
-    // Check if user exists before updating
+    // Update user profile if user exists
     if (user_uid) {
       const userRef = doc(db, 'users', user_uid);
       const userSnap = await getDoc(userRef);
@@ -164,8 +261,12 @@ export default async function handler(req, res) {
       message: "Order created successfully",
       order_id: orderRef.id,
       order_number,
-      vat_total: total_vat,
-      total
+      subtotal_net: order_subtotal_net,
+      subtotal_gross: order_subtotal_gross,
+      total_vat_amount: order_total_vat,
+      total_net: order_total_net,
+      total_gross: order_total_gross,
+      currency: orderItems[0]?.currency || "BGN"
     });
   } catch (error) {
     setCORSHeaders(req, res);
