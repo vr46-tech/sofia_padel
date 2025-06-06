@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, doc, getDoc } from "firebase/firestore";
+import { getFirestore, doc, getDoc, query, collection, where, getDocs } from "firebase/firestore";
 import nodemailer from "nodemailer";
 import handlebars from "handlebars";
 import fs from "fs";
@@ -48,6 +48,7 @@ const transporter = nodemailer.createTransport({
 /**
  * Fetch product names and images from products collection using product_id,
  * and return all necessary fields for the email template.
+ * Fallback: If not found by document ID, query by 'id' field.
  */
 async function prepareItemsWithProductNames(db, orderItems) {
   const itemsWithNames = [];
@@ -57,6 +58,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
     try {
       if (item.product_id) {
         console.log(`[OrderConfirmation] Fetching product data for ID: ${item.product_id}`);
+        // Try by document ID
         const productDocRef = doc(db, "products", item.product_id);
         const productDoc = await getDoc(productDocRef);
 
@@ -66,7 +68,18 @@ async function prepareItemsWithProductNames(db, orderItems) {
           imageUrl = productData.image_url || imageUrl;
           console.log(`[OrderConfirmation] imageUrl for ${item.product_id}:`, imageUrl);
         } else {
-          console.warn(`[OrderConfirmation] Product not found in Firestore: ${item.product_id}`);
+          // Fallback: query by 'id' field
+          console.warn(`[OrderConfirmation] Product not found in Firestore: ${item.product_id}. Trying by 'id' field.`);
+          const q = query(collection(db, "products"), where("id", "==", item.product_id));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const productData = querySnapshot.docs[0].data();
+            displayName = productData.name || displayName;
+            imageUrl = productData.image_url || imageUrl;
+            console.log(`[OrderConfirmation] imageUrl for ${item.product_id} (by 'id' field):`, imageUrl);
+          } else {
+            console.warn(`[OrderConfirmation] Product not found by 'id' field: ${item.product_id}`);
+          }
         }
       }
     } catch (error) {
