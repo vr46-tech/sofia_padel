@@ -143,7 +143,7 @@ async function sendOrderConfirmationEmail(orderId) {
     const mailOptions = {
       from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
       to: order.user_email,
-      subject: "Order Confirmation - Sofia Padel",
+      subject: `Your So Padel order ${order.order_number} is confirmed!`,
       html: htmlContent,
     };
 
