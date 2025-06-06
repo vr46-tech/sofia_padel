@@ -26,7 +26,7 @@ const db = getFirestore(firebaseApp);
 
 // Load the HTML template (from /public directory)
 const templateSource = fs.readFileSync(
-  path.join(process.cwd(), "public", "orderConfirmationTemplate.html"),
+  path.join(process.cwd(), "public", "orderConfirmationTemplatev2.html"),
   "utf8"
 );
 const template = handlebars.compile(templateSource);
@@ -100,30 +100,21 @@ async function sendOrderConfirmationEmail(orderId) {
   // Prepare items array with product names and images from products collection
   const items = await prepareItemsWithProductNames(db, order.items || []);
 
-  // Prepare template data with VAT and all new fields
+  // Prepare template data with new variable names
   const templateData = {
-    customerName: `${order.first_name} ${order.last_name}`,
+    first_name: order.first_name,
+    sub_total: (order.subtotal_gross ?? 0).toFixed(2),
+    shipping: (order.shipping_cost ?? 0).toFixed(2),
+    total: (order.total_gross ?? 0).toFixed(2),
+    shipping_address: `${order.address}, ${order.city}`,
+    shipping_method: order.delivery_option,
+    payment_method: order.payment_method,
+    // Keep items array for product listing
     items: items,
-    subtotalNet: (order.subtotal_net ?? 0).toFixed(2),
-    vatTotal: (order.subtotal_vat_amount ?? 0).toFixed(2),
-    subtotalGross: (order.subtotal_gross ?? 0).toFixed(2),
-    shippingCostDisplay:
-      order.shipping_cost > 0
-        ? "€" + (order.shipping_cost ?? 0).toFixed(2)
-        : "FREE",
-    totalGross: (order.total_gross ?? order.total_amount ?? 0).toFixed(2),
-    address: order.address,
-    city: order.city,
+    // Include other existing fields if needed by template
+    customerName: `${order.first_name} ${order.last_name}`,
     postalCode: order.postal_code,
-    phone: order.phone,
-    deliveryOptionDisplay:
-      order.delivery_option === "delivery"
-        ? "Delivery to address"
-        : "Pick up from address",
-    paymentMethodDisplay:
-      order.payment_method === "card"
-        ? "Pay by Card on Delivery"
-        : "Cash on Delivery",
+    phone: order.phone
   };
 
   // Generate the HTML email content
@@ -139,6 +130,7 @@ async function sendOrderConfirmationEmail(orderId) {
 
   return true;
 }
+
 
 function setCORSHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
