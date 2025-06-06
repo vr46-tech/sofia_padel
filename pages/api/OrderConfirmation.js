@@ -5,6 +5,9 @@ import handlebars from "handlebars";
 import fs from "fs";
 import path from "path";
 
+// Enable debug HTML attachment via env variable or set to true/false directly
+const DEBUG_ATTACH_HTML = process.env.DEBUG_ATTACH_HTML === 'true'; // or: const DEBUG_ATTACH_HTML = true;
+
 // Firebase Client SDK Configuration
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
@@ -50,7 +53,6 @@ async function prepareItemsWithProductNames(db, orderItems) {
   const itemsWithNames = [];
   for (const item of orderItems) {
     let displayName = item.name || "Unknown Product";
-    let brand = "";
     let imageUrl = "";
     try {
       if (item.product_id) {
@@ -59,12 +61,9 @@ async function prepareItemsWithProductNames(db, orderItems) {
         const productDoc = await getDoc(productDocRef);
 
         if (productDoc.exists()) {
-          console.log(`[OrderConfirmation] Product found: ${item.product_id}`);
           const productData = productDoc.data();
           displayName = productData.name || displayName;
-          brand = productData.brand_name || brand;
           imageUrl = productData.image_url || imageUrl;
-          console.log(imageUrl);          
         } else {
           console.warn(`[OrderConfirmation] Product not found in Firestore: ${item.product_id}`);
         }
@@ -73,23 +72,10 @@ async function prepareItemsWithProductNames(db, orderItems) {
       console.error(`[OrderConfirmation] Error fetching product ${item.product_id}:`, error);
     }
     itemsWithNames.push({
-      brand,
-      name: displayName,
       image_url: imageUrl,
       item_name: displayName,
       quantity: item.quantity,
-      item_price: (item.line_total_gross ?? 0).toFixed(2),
-      unitPriceNet: (item.unit_price_net ?? 0).toFixed(2),
-      unitPriceGross: (item.unit_price_gross ?? 0).toFixed(2),
-      unitVatAmount: (item.unit_vat_amount ?? 0).toFixed(2),
-      vatRate: Math.round((item.vat_rate ?? 0) * 100),
-      lineTotalNet: (item.line_total_net ?? 0).toFixed(2),
-      lineTotalGross: (item.line_total_gross ?? 0).toFixed(2),
-      lineVatAmount: (item.line_vat_amount ?? 0).toFixed(2),
-      discountPercent: item.discount_percent > 0 ? item.discount_percent : null,
-      originalPriceGross: item.original_price_gross
-        ? (item.original_price_gross).toFixed(2)
-        : null,
+      item_price: (item.line_total_gross ?? 0).toFixed(2)
     });
   }
   return itemsWithNames;
@@ -134,19 +120,34 @@ async function sendOrderConfirmationEmail(orderId) {
     const htmlContent = template(templateData);
     console.log('[OrderConfirmation] Email template rendered successfully');
 
-    console.log('[OrderConfirmation] Attempting to send email...');
-    const mailResult = await transporter.sendMail({
+    // Prepare mail options
+    const mailOptions = {
       from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
       to: order.user_email,
       subject: "Order Confirmation - Sofia Padel",
       html: htmlContent,
-    });
+    };
+
+    // Attach HTML as a file if debug mode is enabled
+    if (DEBUG_ATTACH_HTML) {
+      mailOptions.attachments = [
+        {
+          filename: 'orderConfirmation.html',
+          content: htmlContent,
+          contentType: 'text/html'
+        }
+      ];
+      console.log('[OrderConfirmation] Debug mode enabled: HTML attached as orderConfirmation.html');
+    }
+
+    // Send the email
+    const mailResult = await transporter.sendMail(mailOptions);
     console.log('[OrderConfirmation] ✅ Email sent successfully:', mailResult.messageId);
 
     return true;
   } catch (error) {
     console.error('[OrderConfirmation] 🔥 Error in sendOrderConfirmationEmail:', error);
-    throw error; // Re-throw to be caught by the handler
+    throw error;
   }
 }
 
