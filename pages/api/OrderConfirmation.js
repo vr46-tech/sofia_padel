@@ -54,24 +54,28 @@ async function prepareItemsWithProductNames(db, orderItems) {
     let imageUrl = "";
     try {
       if (item.product_id) {
+        console.log(`[OrderConfirmation] Fetching product data for ID: ${item.product_id}`);
         const productDocRef = doc(db, "products", item.product_id);
         const productDoc = await getDoc(productDocRef);
+
         if (productDoc.exists()) {
+          console.log(`[OrderConfirmation] Product found: ${item.product_id}`);
           const productData = productDoc.data();
-          if (productData.name) displayName = productData.name;
-          if (productData.brand_name) brand = productData.brand_name;
-          if (productData.image_url) imageUrl = productData.image_url;
+          displayName = productData.name || displayName;
+          brand = productData.brand_name || brand;
+          imageUrl = productData.image_url || imageUrl;
+        } else {
+          console.warn(`[OrderConfirmation] Product not found in Firestore: ${item.product_id}`);
         }
       }
     } catch (error) {
-      // Fallback to item fields if product fetch fails
+      console.error(`[OrderConfirmation] Error fetching product ${item.product_id}:`, error);
     }
     itemsWithNames.push({
       brand,
       name: displayName,
       image_url: imageUrl,
       quantity: item.quantity,
-      // New order item fields:
       unitPriceNet: (item.unit_price_net ?? 0).toFixed(2),
       unitPriceGross: (item.unit_price_gross ?? 0).toFixed(2),
       unitVatAmount: (item.unit_vat_amount ?? 0).toFixed(2),
@@ -92,45 +96,56 @@ async function prepareItemsWithProductNames(db, orderItems) {
  * Send order confirmation email for a given orderId
  */
 async function sendOrderConfirmationEmail(orderId) {
-  const orderDocRef = doc(db, "orders", orderId);
-  const orderDoc = await getDoc(orderDocRef);
-  if (!orderDoc.exists()) throw new Error("Order not found");
-  const order = orderDoc.data();
+  try {
+    console.log(`[OrderConfirmation] Starting email confirmation for order: ${orderId}`);
+    const orderDocRef = doc(db, "orders", orderId);
+    const orderDoc = await getDoc(orderDocRef);
 
-  // Prepare items array with product names and images from products collection
-  const items = await prepareItemsWithProductNames(db, order.items || []);
+    if (!orderDoc.exists()) {
+      console.error(`[OrderConfirmation] Order not found in Firestore: ${orderId}`);
+      throw new Error(`Order ${orderId} not found in Firestore`);
+    }
+    console.log(`[OrderConfirmation] Order document found: ${orderId}`);
 
-  // Prepare template data with new variable names
-  const templateData = {
-    first_name: order.first_name,
-    sub_total: (order.subtotal_gross ?? 0).toFixed(2),
-    shipping: (order.shipping_cost ?? 0).toFixed(2),
-    total: (order.total_gross ?? 0).toFixed(2),
-    shipping_address: `${order.address}, ${order.city}`,
-    shipping_method: order.delivery_option,
-    payment_method: order.payment_method,
-    // Keep items array for product listing
-    items: items,
-    // Include other existing fields if needed by template
-    customerName: `${order.first_name} ${order.last_name}`,
-    postalCode: order.postal_code,
-    phone: order.phone
-  };
+    const order = orderDoc.data();
+    console.log('[OrderConfirmation] Order data:', JSON.stringify(order, null, 2));
 
-  // Generate the HTML email content
-  const htmlContent = template(templateData);
+    const items = await prepareItemsWithProductNames(db, order.items || []);
+    console.log(`[OrderConfirmation] Processed ${items.length} order items`);
 
-  // Send the email
-  await transporter.sendMail({
-    from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
-    to: order.user_email,
-    subject: "Order Confirmation - Sofia Padel",
-    html: htmlContent,
-  });
+    const templateData = {
+      first_name: order.first_name,
+      sub_total: (order.subtotal_gross ?? 0).toFixed(2),
+      shipping: (order.shipping_cost ?? 0).toFixed(2),
+      total: (order.total_gross ?? 0).toFixed(2),
+      shipping_address: `${order.address}, ${order.city}`,
+      shipping_method: order.delivery_option,
+      payment_method: order.payment_method,
+      items: items,
+      customerName: `${order.first_name} ${order.last_name}`,
+      postalCode: order.postal_code,
+      phone: order.phone
+    };
+    console.log('[OrderConfirmation] Template data prepared:', JSON.stringify(templateData, null, 2));
 
-  return true;
+    const htmlContent = template(templateData);
+    console.log('[OrderConfirmation] Email template rendered successfully');
+
+    console.log('[OrderConfirmation] Attempting to send email...');
+    const mailResult = await transporter.sendMail({
+      from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
+      to: order.user_email,
+      subject: "Order Confirmation - Sofia Padel",
+      html: htmlContent,
+    });
+    console.log('[OrderConfirmation] ✅ Email sent successfully:', mailResult.messageId);
+
+    return true;
+  } catch (error) {
+    console.error('[OrderConfirmation] 🔥 Error in sendOrderConfirmationEmail:', error);
+    throw error; // Re-throw to be caught by the handler
+  }
 }
-
 
 function setCORSHeaders(req, res) {
   res.setHeader('Access-Control-Allow-Origin', req.headers.origin || '*');
@@ -140,75 +155,81 @@ function setCORSHeaders(req, res) {
 
 // Default export required for Next.js API route
 export default async function handler(req, res) {
-  setCORSHeaders(req, res);
-
-  // Handle preflight OPTIONS request
-  if (req.method === 'OPTIONS') {
-    res.status(204).end();
-    return;
-  }
-
-  // Log request details for debugging
-  console.log('Incoming request:', {
-    method: req.method,
-    url: req.url,
-    headers: req.headers,
-    body: req.body
-  });
-
-  if (req.method !== 'POST') {
-    setCORSHeaders(req, res);
-    res.status(405).json({ error: 'Method Not Allowed' });
-    return;
-  }
-
-  // Validate API key
-  const apiKey = req.headers['x-api-key'];
-  if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
-    console.error('Invalid/missing API key:', {
-      received: apiKey,
-      expected: process.env.VERCEL_API_KEY ? '***' : 'NOT_SET'
-    });
-    setCORSHeaders(req, res);
-    return res.status(401).json({
-      error: 'Unauthorized',
-      details: 'Valid x-api-key header required'
-    });
-  }
-
-  // Validate request body
-  let orderId;
   try {
-    orderId = typeof req.body === 'string'
-      ? JSON.parse(req.body).orderId
-      : req.body?.orderId;
-  } catch (e) {
     setCORSHeaders(req, res);
-    console.error('Invalid request body:', req.body);
-    return res.status(400).json({
-      error: 'Invalid request body',
-      expected_format: { orderId: "string" }
+
+    // Handle preflight OPTIONS request
+    if (req.method === 'OPTIONS') {
+      console.log('[OrderConfirmation] Handling OPTIONS preflight');
+      return res.status(204).end();
+    }
+
+    // Log request details for debugging
+    console.log('[OrderConfirmation] Incoming request:', {
+      method: req.method,
+      url: req.url,
+      headers: req.headers,
+      body: req.body
     });
-  }
 
-  if (!orderId) {
-    setCORSHeaders(req, res);
-    console.error('Missing orderId in request body');
-    return res.status(400).json({
-      error: 'Missing required field: orderId'
-    });
-  }
+    if (req.method !== 'POST') {
+      console.warn(`[OrderConfirmation] Method not allowed: ${req.method}`);
+      return res.status(405).json({ error: 'Method Not Allowed' });
+    }
 
-  console.log('✅ All validations passed. Processing order:', orderId);
+    // Validate API key
+    const apiKey = req.headers['x-api-key'];
+    if (!apiKey || apiKey !== process.env.VERCEL_API_KEY) {
+      console.error('[OrderConfirmation] Invalid/missing API key:', {
+        received: apiKey,
+        expected: process.env.VERCEL_API_KEY ? '***' : 'NOT_SET'
+      });
+      return res.status(401).json({
+        error: 'Unauthorized',
+        details: 'Valid x-api-key header required'
+      });
+    }
 
-  try {
+    // Validate request body
+    let orderId;
+    try {
+      orderId = typeof req.body === 'string'
+        ? JSON.parse(req.body).orderId
+        : req.body?.orderId;
+    } catch (e) {
+      console.error('[OrderConfirmation] Invalid request body:', req.body);
+      return res.status(400).json({
+        error: 'Invalid request body',
+        expected_format: { orderId: "string" }
+      });
+    }
+
+    if (!orderId) {
+      console.error('[OrderConfirmation] Missing orderId in request body');
+      return res.status(400).json({
+        error: 'Missing required field: orderId'
+      });
+    }
+
+    console.log('[OrderConfirmation] ✅ All validations passed. Processing order:', orderId);
+
     await sendOrderConfirmationEmail(orderId);
-    res.status(200).json({ message: "Order confirmation email sent!" });
+
+    console.log('[OrderConfirmation] Order confirmation completed successfully');
+    return res.status(200).json({ message: "Order confirmation email sent!" });
+
   } catch (error) {
-    setCORSHeaders(req, res); // Fixed line
-    res.status(500).json({
+    console.error('[OrderConfirmation] 🚨 Top-level handler error:', {
+      message: error.message,
+      stack: error.stack,
+      rawError: error
+    });
+
+    setCORSHeaders(req, res);
+    return res.status(500).json({
       message: "Internal server error",
-      error: error.message,
+      error: process.env.NODE_ENV === 'production' ? 'Contact support' : error.message,
+      errorId: Date.now()
     });
   }
 }
