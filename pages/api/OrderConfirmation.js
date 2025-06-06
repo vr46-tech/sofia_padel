@@ -68,7 +68,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
           const modelName = productData.name || displayName;
           displayName = brandName ? `${brandName} ${modelName}` : modelName;
           imageUrl = productData.image_url || imageUrl;
-          console.log(`[OrderConfirmation] imageUrl for ${item.product_id}:`, imageUrl);
+            console.log(`[OrderConfirmation] brandname for ${item.product_id} (by 'id' field):`, brandName);
         } else {
           // Fallback: query by 'id' field
           console.warn(`[OrderConfirmation] Product not found in Firestore: ${item.product_id}. Trying by 'id' field.`);
@@ -80,7 +80,8 @@ async function prepareItemsWithProductNames(db, orderItems) {
             const modelName = productData.name || displayName;
             displayName = brandName ? `${brandName} ${modelName}` : modelName;
             imageUrl = productData.image_url || imageUrl;
-            console.log(`[OrderConfirmation] imageUrl for ${item.product_id} (by 'id' field):`, imageUrl);
+            console.log(`[OrderConfirmation] brandname for ${item.product_id} (by 'id' field):`, brandName);
+
           } else {
             console.warn(`[OrderConfirmation] Product not found by 'id' field: ${item.product_id}`);
           }
