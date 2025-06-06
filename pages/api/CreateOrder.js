@@ -1,5 +1,5 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, collection, addDoc, doc, getDoc, updateDoc, runTransaction } from "firebase/firestore";
+import { getFirestore, collection, addDoc, doc, getDoc, getDocs, updateDoc, runTransaction } from "firebase/firestore";
 
 // Firebase config (reuse your config)
 const firebaseConfig = {
@@ -92,6 +92,9 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Verbose: Log incoming payload
+    console.log("Order creation request body:", JSON.stringify(req.body, null, 2));
+
     // Parse and validate input
     const {
       user_email,
@@ -117,44 +120,69 @@ export default async function handler(req, res) {
       return;
     }
 
-    // Fetch product details and calculate pricing with VAT
     let subtotal_net = 0;
     let subtotal_gross = 0;
     let total_vat_amount = 0;
     const orderItems = [];
-    
+
     for (const item of items) {
-      // Each item: { product_id, quantity }
-      const productDoc = await getDoc(doc(db, "products", item.product_id));
+      // Verbose log for each item
+      console.log(`Processing order item:`, item);
+
+      // Check type and value of product_id
+      if (!item.product_id || typeof item.product_id !== "string") {
+        console.error("Invalid product_id in item:", item);
+        res.status(400).json({ error: `Invalid product_id: ${item.product_id}` });
+        return;
+      }
+
+      // Log the Firestore path being queried
+      const productRef = doc(db, "products", item.product_id);
+      console.log("Firestore product path:", productRef.path);
+
+      const productDoc = await getDoc(productRef);
+
+      // Log existence check
+      console.log(
+        `Product fetch result for ID ${item.product_id}: exists=${productDoc.exists()}`
+      );
+
       if (!productDoc.exists()) {
+        // Log all IDs in the products collection for debugging
+        const snapshot = await getDocs(collection(db, "products"));
+        const allIds = snapshot.docs.map(d => d.id);
+        console.error(
+          `Product not found: ${item.product_id}. Existing product IDs:`,
+          allIds
+        );
         res.status(400).json({ error: `Product not found: ${item.product_id}` });
         return;
       }
-      
+
       const product = productDoc.data();
       const productWithPricing = calculateFinalPrice(product);
-      
+
       // Determine which price to use (discounted or regular)
-      const isDiscounted = productWithPricing.discounted && 
-                          productWithPricing.discounted_price_gross !== null;
-      
-      const unit_price_net = isDiscounted 
-        ? productWithPricing.discounted_price_net 
+      const isDiscounted = productWithPricing.discounted &&
+        productWithPricing.discounted_price_gross !== null;
+
+      const unit_price_net = isDiscounted
+        ? productWithPricing.discounted_price_net
         : productWithPricing.price_net;
-      
-      const unit_price_gross = isDiscounted 
-        ? productWithPricing.discounted_price_gross 
+
+      const unit_price_gross = isDiscounted
+        ? productWithPricing.discounted_price_gross
         : productWithPricing.price_gross;
-      
-      const unit_vat_amount = isDiscounted 
-        ? productWithPricing.vat_amount_discounted 
+
+      const unit_vat_amount = isDiscounted
+        ? productWithPricing.vat_amount_discounted
         : productWithPricing.vat_amount;
-      
+
       const quantity = item.quantity;
       const line_total_net = +(unit_price_net * quantity).toFixed(2);
       const line_total_gross = +(unit_price_gross * quantity).toFixed(2);
       const line_vat_amount = +(unit_vat_amount * quantity).toFixed(2);
-      
+
       subtotal_net += line_total_net;
       subtotal_gross += line_total_gross;
       total_vat_amount += line_vat_amount;
@@ -208,27 +236,27 @@ export default async function handler(req, res) {
       postal_code,
       payment_method,
       items: orderItems,
-      
+
       // Pricing breakdown
       subtotal_net: order_subtotal_net,
       subtotal_gross: order_subtotal_gross,
       subtotal_vat_amount: +total_vat_amount.toFixed(2),
-      
+
       shipping_cost_net: shipping_net,
       shipping_cost_gross: shipping_gross,
       shipping_vat_amount: shipping_vat_amount,
       shipping_vat_rate: shipping_vat_rate,
-      
+
       total_net: order_total_net,
       total_gross: order_total_gross,
       total_vat_amount: order_total_vat,
-      
+
       // Legacy fields for backward compatibility
       shipping_cost: shipping_gross, // Keep for compatibility
       subtotal: order_subtotal_gross, // Keep for compatibility
       vat_total: order_total_vat, // Keep for compatibility
       total: order_total_gross, // Keep for compatibility
-      
+
       currency: orderItems[0]?.currency || "BGN",
       status: 'pending',
       created_at: new Date().toISOString()
@@ -270,6 +298,7 @@ export default async function handler(req, res) {
     });
   } catch (error) {
     setCORSHeaders(req, res);
+    console.error("Order creation error:", error);
     res.status(500).json({ error: "Internal server error", details: error.message });
   }
 }
