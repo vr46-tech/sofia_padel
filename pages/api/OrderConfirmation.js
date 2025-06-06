@@ -64,7 +64,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
 
         if (productDoc.exists()) {
           const productData = productDoc.data();
-          const brandName = productData.brand_name || "";
+          const brandName = productData.brand || "";
           const modelName = productData.name || displayName;
           displayName = brandName ? `${brandName} ${modelName}` : modelName;
           imageUrl = productData.image_url || imageUrl;
@@ -76,7 +76,7 @@ async function prepareItemsWithProductNames(db, orderItems) {
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
             const productData = querySnapshot.docs[0].data();
-            const brandName = productData.brand_name || "";
+            const brandName = productData.brand || "";
             const modelName = productData.name || displayName;
             displayName = brandName ? `${brandName} ${modelName}` : modelName;
             imageUrl = productData.image_url || imageUrl;
