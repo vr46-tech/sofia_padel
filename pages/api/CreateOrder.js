@@ -1,5 +1,16 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, collection, addDoc, doc, getDoc, getDocs, updateDoc, runTransaction } from "firebase/firestore";
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  doc,
+  getDoc,
+  getDocs,
+  updateDoc,
+  runTransaction,
+  query,       // <-- Import query
+  where        // <-- Import where
+} from "firebase/firestore";
 
 // Firebase config (reuse your config)
 const firebaseConfig = {
@@ -137,27 +148,44 @@ export default async function handler(req, res) {
       }
 
       // Log the Firestore path being queried
-     const productRef = doc(db, "products", item.product_id);
-const productDoc = await getDoc(productRef);
+      const productRef = doc(db, "products", item.product_id);
+      console.log("Firestore product path:", productRef.path);
 
-if (!productDoc.exists()) {
-  // Fallback: try to find by 'id' field
-  console.warn(`Direct lookup failed for product_id ${item.product_id}, trying query by 'id' field...`);
-  const querySnapshot = await getDocs(
-    query(collection(db, "products"), where("id", "==", item.product_id))
-  );
-  if (!querySnapshot.empty) {
-    const docSnap = querySnapshot.docs[0];
-    const product = docSnap.data();
-    // ...continue as before
-  } else {
-    // Not found by either method
-    res.status(400).json({ error: `Product not found: ${item.product_id}` });
-    return;
-  }
-}
+      let productDoc = await getDoc(productRef);
 
-      const product = productDoc.data();
+      // Log existence check
+      console.log(
+        `Product fetch result for ID ${item.product_id}: exists=${productDoc.exists()}`
+      );
+
+      // Fallback: try to find by 'id' field if not found by doc ID
+      let product;
+      if (!productDoc.exists()) {
+        console.warn(`Direct lookup failed for product_id ${item.product_id}, trying query by 'id' field...`);
+        const q = query(
+          collection(db, "products"),
+          where("id", "==", item.product_id)
+        );
+        const querySnapshot = await getDocs(q);
+        if (!querySnapshot.empty) {
+          const docSnap = querySnapshot.docs[0];
+          product = docSnap.data();
+          console.log(`Found product by 'id' field:`, product);
+        } else {
+          // Log all IDs in the products collection for debugging
+          const snapshot = await getDocs(collection(db, "products"));
+          const allIds = snapshot.docs.map(d => d.id);
+          console.error(
+            `Product not found: ${item.product_id}. Existing product IDs:`,
+            allIds
+          );
+          res.status(400).json({ error: `Product not found: ${item.product_id}` });
+          return;
+        }
+      } else {
+        product = productDoc.data();
+      }
+
       const productWithPricing = calculateFinalPrice(product);
 
       // Determine which price to use (discounted or regular)
