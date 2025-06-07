@@ -85,6 +85,7 @@ export default async function handler(req, res) {
       // Prepare invoice items with all new fields, safely accessed
       const items = [];
       for (const item of order.items || []) {
+        console.log("Fetched order item for invoice:", item);
         let productName = item.name || "Unknown Product";
         let image_url = "";
         let brand = "";
