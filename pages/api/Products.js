@@ -1,10 +1,13 @@
 import { initializeApp, getApps } from "firebase/app";
 import { getFirestore, collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
 
-// Simple in-memory cache
+// Enhanced cache structure
 const cache = {
-  products: null,
-  productsTimestamp: 0,
+  allProducts: {
+    data: null,
+    timestamp: 0
+  },
+  singleProducts: {}, // Stores individual products by ID
   ttl: 10 * 60 * 1000 // 10 minutes in milliseconds
 };
 
@@ -113,6 +116,11 @@ export default async function handler(req, res) {
       const productRef = doc(db, "products", id);
       await updateDoc(productRef, updateData);
 
+      // Invalidate relevant cache entries
+      delete cache.singleProducts[id];  // Remove single product from cache
+      cache.allProducts.data = null;    // Invalidate all products list
+      cache.allProducts.timestamp = 0;
+
       res.status(200).json({ success: true });
       return;
     }
@@ -120,42 +128,47 @@ export default async function handler(req, res) {
     // --- GET: Single or All Products ---
     if (req.method === 'GET') {
       const { id } = req.query;
+      const now = Date.now();
 
       if (id) {
-        // Single product details (no cache for single product)
+        // Single product with caching
+        const cachedProduct = cache.singleProducts[id];
+        
+        if (cachedProduct && now - cachedProduct.timestamp < cache.ttl) {
+          res.status(200).json(cachedProduct.data);
+          return;
+        }
+
         const productDoc = await getDoc(doc(db, "products", id));
         if (!productDoc.exists()) {
-          setCORSHeaders(req, res);
           res.status(404).json({ error: "Product not found" });
           return;
         }
-        const product = productDoc.data();
-        const result = calculateFinalPrice(product);
-        res.status(200).json(result);
+
+        const product = calculateFinalPrice(productDoc.data());
+        cache.singleProducts[id] = { 
+          data: product, 
+          timestamp: now 
+        };
+
+        res.status(200).json(product);
       } else {
-        // List all products with server-side cache
-        const now = Date.now();
-        if (
-          cache.products &&
-          now - cache.productsTimestamp < cache.ttl
-        ) {
-          // Serve from cache
-          res.status(200).json(cache.products);
+        // All products cache logic
+        if (cache.allProducts.data && now - cache.allProducts.timestamp < cache.ttl) {
+          res.status(200).json(cache.allProducts.data);
           return;
         }
 
-        // Fetch from Firestore and update cache
         const querySnapshot = await getDocs(collection(db, "products"));
-        const products = querySnapshot.docs.map(doc => {
-          const product = doc.data();
-          return {
-            docId: doc.id,
-            ...calculateFinalPrice(product)
-          };
-        });
+        const products = querySnapshot.docs.map(doc => ({
+          docId: doc.id,
+          ...calculateFinalPrice(doc.data())
+        }));
 
-        cache.products = products;
-        cache.productsTimestamp = now;
+        cache.allProducts = {
+          data: products,
+          timestamp: now
+        };
 
         res.status(200).json(products);
       }
