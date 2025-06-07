@@ -7,7 +7,7 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
-import i18next from "../i18n"; // Adjust path as needed
+import i18next from '../../i18n';
 
 Font.register({
   family: "Lato",
