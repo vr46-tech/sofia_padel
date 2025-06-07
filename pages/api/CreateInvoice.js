@@ -90,7 +90,7 @@ export default async function handler(req, res) {
         let image_url = "";
         let brand = "";
         if (item.product_id) {
-          const productDoc = await getDoc(doc(db, "products", item.product_id));
+          const productDoc = query(collection(db, "products"), where("id", "==", item.product_id));
           if (productDoc.exists()) {
             const data = productDoc.data();
             console.log("Product data for invoice:", data); // Debug log
