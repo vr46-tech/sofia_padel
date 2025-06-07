@@ -1,0 +1,20 @@
+{
+  "invoice": "INVOICE",
+  "invoiceNumber": "Invoice #",
+  "date": "Date",
+  "dueDate": "Due Date",
+  "orderReference": "Order Ref",
+  "billTo": "BILL TO",
+  "item": "ITEM",
+  "quantity": "QUANTITY",
+  "price": "PRICE",
+  "tax": "TAX",
+  "amount": "AMOUNT",
+  "subtotal": "Subtotal",
+  "shippingAndHandling": "Shipping & Handling",
+  "vat": "VAT",
+  "total": "TOTAL",
+  "notes": "NOTES",
+  "paymentMethod": "Payment Method",
+  "footer": "Powered by Sofia Padel | This invoice was generated electronically."
+}
