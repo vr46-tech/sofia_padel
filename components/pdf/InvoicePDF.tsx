@@ -44,7 +44,7 @@ const styles = StyleSheet.create({
   footer: { marginTop: 32, textAlign: "center", color: "#888", fontSize: 9 },
 });
 
-function formatDate(date) {
+function formatDate(date: string | Date) {
   const d = new Date(date);
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
@@ -58,18 +58,31 @@ export const InvoicePDF = ({
   dueDate,
   company,
   customer,
-  items,
-  shippingCost,
-  basePrice,
+  items = [],
+  shippingCost = 0,
+  subtotalNet = 0,
+  subtotalGross = 0,
+  vatTotal = 0,
+  total = 0,
   paymentMethod,
   currency = "BGN",
   orderReference,
   notes = "Thank you for your business!",
 }) => {
-  const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-  const totalBeforeVAT = subtotal + shippingCost + basePrice;
-  const vatAmount = totalBeforeVAT * 0.2;
-  const total = totalBeforeVAT + vatAmount;
+  // Use the provided totals to avoid recalculating
+  const shippingAndHandling = shippingCost ?? 0;
+  const totalBeforeVAT = subtotalGross ?? 0;
+  const vatAmount = vatTotal ?? 0;
+  const finalTotal = total ?? 0;
+
+  // Ensure all items have safe defaults for display
+  const safeItems = items.map(item => ({
+    ...item,
+    unit_price: item.unit_price ?? 0,
+    line_total_gross: item.line_total_gross ?? 0,
+    vat_rate: item.vat_rate ?? 0.2,
+    quantity: item.quantity ?? 0,
+  }));
 
   return (
     <Document>
@@ -100,7 +113,7 @@ export const InvoicePDF = ({
           <Text>{customer.phone}</Text>
         </View>
 
-        {/* Items Table (Description column removed) */}
+        {/* Items Table */}
         <View style={styles.table}>
           <View style={[styles.tableRow, styles.tableHeader]}>
             <Text style={[styles.cell, { flex: 2 }]}>ITEM</Text>
@@ -109,13 +122,19 @@ export const InvoicePDF = ({
             <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>TAX</Text>
             <Text style={[styles.cell, styles.cellRight, styles.lastCell, { flex: 1 }]}>AMOUNT</Text>
           </View>
-          {items.map((item, idx) => (
+          {safeItems.map((item, idx) => (
             <View key={idx} style={styles.tableRow}>
               <Text style={[styles.cell, { flex: 2 }]}>{item.name}</Text>
               <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>{item.quantity}</Text>
-              <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>{item.price.toFixed(2)} {currency}</Text>
-              <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>20%</Text>
-              <Text style={[styles.cell, styles.cellRight, styles.lastCell, { flex: 1 }]}>{(item.price * item.quantity).toFixed(2)} {currency}</Text>
+              <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>
+                {(item.unit_price ?? 0).toFixed(2)} {currency}
+              </Text>
+              <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>
+                {((item.vat_rate ?? 0) * 100).toFixed(0)}%
+              </Text>
+              <Text style={[styles.cell, styles.cellRight, styles.lastCell, { flex: 1 }]}>
+                {(item.line_total_gross ?? 0).toFixed(2)} {currency}
+              </Text>
             </View>
           ))}
         </View>
@@ -124,21 +143,27 @@ export const InvoicePDF = ({
         <View>
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Subtotal:</Text>
-            <Text style={styles.totalsValue}>{subtotal.toFixed(2)} {currency}</Text>
+            <Text style={styles.totalsValue}>
+              {(subtotalGross ?? 0).toFixed(2)} {currency}
+            </Text>
           </View>
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Shipping & Handling:</Text>
             <Text style={styles.totalsValue}>
-              {shippingCost + basePrice > 0 ? `${(shippingCost + basePrice).toFixed(2)} ${currency}` : "FREE"}
+              {shippingAndHandling > 0 ? `${shippingAndHandling.toFixed(2)} ${currency}` : "FREE"}
             </Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>VAT (20%):</Text>
-            <Text style={styles.totalsValue}>{vatAmount.toFixed(2)} {currency}</Text>
+            <Text style={styles.totalsLabel}>VAT:</Text>
+            <Text style={styles.totalsValue}>
+              {(vatAmount ?? 0).toFixed(2)} {currency}
+            </Text>
           </View>
           <View style={styles.totalsRow}>
             <Text style={[styles.totalsLabel, { fontSize: 13 }]}>TOTAL:</Text>
-            <Text style={[styles.totalsValue, { fontSize: 13 }]}>{total.toFixed(2)} {currency}</Text>
+            <Text style={[styles.totalsValue, { fontSize: 13 }]}>
+              {(finalTotal ?? 0).toFixed(2)} {currency}
+            </Text>
           </View>
         </View>
 
@@ -146,6 +171,11 @@ export const InvoicePDF = ({
         <View style={styles.notes}>
           <Text>NOTES:</Text>
           <Text>{notes}</Text>
+        </View>
+
+        {/* Payment Method */}
+        <View style={styles.notes}>
+          <Text>Payment Method: {paymentMethod}</Text>
         </View>
 
         {/* Footer */}
