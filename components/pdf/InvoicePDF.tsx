@@ -8,12 +8,11 @@ import {
   Font,
 } from "@react-pdf/renderer";
 
-// Register a professional font (Lato)
 Font.register({
   family: "Lato",
   fonts: [
-    { src: "https://fonts.gstatic.com/s/lato/v24/S6uyw4BMUTPHjx4wWw.ttf" }, // Regular
-    { src: "https://fonts.gstatic.com/s/lato/v24/S6u9w4BMUTPHh6UVSwiPHA.ttf", fontWeight: 700 }, // Bold
+    { src: "https://fonts.gstatic.com/s/lato/v24/S6uyw4BMUTPHjx4wWw.ttf" },
+    { src: "https://fonts.gstatic.com/s/lato/v24/S6u9w4BMUTPHh6UVSwiPHA.ttf", fontWeight: 700 },
   ],
 });
 
@@ -69,25 +68,23 @@ export const InvoicePDF = ({
   orderReference,
   notes = "Thank you for your business!",
 }) => {
-  // Use the provided totals to avoid recalculating
   const shippingAndHandling = shippingCost ?? 0;
   const totalBeforeVAT = subtotalGross ?? 0;
   const vatAmount = vatTotal ?? 0;
   const finalTotal = total ?? 0;
 
-  // Ensure all items have safe defaults for display
   const safeItems = items.map(item => ({
     ...item,
     unit_price: item.unit_price ?? 0,
     line_total_gross: item.line_total_gross ?? 0,
     vat_rate: item.vat_rate ?? 0.2,
     quantity: item.quantity ?? 0,
+    brand: item.brand ?? "",
   }));
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* Header */}
         <View style={[styles.headerRow, styles.section]}>
           <View style={styles.companyBlock}>
             <Text style={{ fontWeight: "bold", fontSize: 14 }}>{company.name}</Text>
@@ -104,7 +101,6 @@ export const InvoicePDF = ({
           </View>
         </View>
 
-        {/* Bill To */}
         <View style={styles.billTo}>
           <Text style={{ fontWeight: "bold" }}>BILL TO:</Text>
           <Text>{customer.name}</Text>
@@ -113,7 +109,6 @@ export const InvoicePDF = ({
           <Text>{customer.phone}</Text>
         </View>
 
-        {/* Items Table */}
         <View style={styles.table}>
           <View style={[styles.tableRow, styles.tableHeader]}>
             <Text style={[styles.cell, { flex: 2 }]}>ITEM</Text>
@@ -124,7 +119,9 @@ export const InvoicePDF = ({
           </View>
           {safeItems.map((item, idx) => (
             <View key={idx} style={styles.tableRow}>
-              <Text style={[styles.cell, { flex: 2 }]}>{item.name}</Text>
+              <Text style={[styles.cell, { flex: 2 }]}>
+                {item.brand ? `${item.brand} ${item.name}` : item.name}
+              </Text>
               <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>{item.quantity}</Text>
               <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>
                 {(item.unit_price ?? 0).toFixed(2)} {currency}
@@ -139,7 +136,6 @@ export const InvoicePDF = ({
           ))}
         </View>
 
-        {/* Totals */}
         <View>
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>Subtotal:</Text>
@@ -167,18 +163,15 @@ export const InvoicePDF = ({
           </View>
         </View>
 
-        {/* Notes */}
         <View style={styles.notes}>
           <Text>NOTES:</Text>
           <Text>{notes}</Text>
         </View>
 
-        {/* Payment Method */}
         <View style={styles.notes}>
           <Text>Payment Method: {paymentMethod}</Text>
         </View>
 
-        {/* Footer */}
         <Text style={styles.footer}>
           Powered by Sofia Padel | This invoice was generated electronically.
         </Text>
