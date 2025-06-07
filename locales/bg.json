@@ -1,0 +1,20 @@
+{
+  "invoice": "ФАКТУРА",
+  "invoiceNumber": "Фактура №",
+  "date": "Дата",
+  "dueDate": "Краен срок за плащане",
+  "orderReference": "Поръчка №",
+  "billTo": "КЛИЕНТ",
+  "item": "СТОКА",
+  "quantity": "КОЛИЧЕСТВО",
+  "price": "ЦЕНА",
+  "tax": "ДАНЪК",
+  "amount": "СУМА",
+  "subtotal": "Междинна сума",
+  "shippingAndHandling": "Доставка и обработка",
+  "vat": "ДДС",
+  "total": "ОБЩО",
+  "notes": "БЕЛЕЖКИ",
+  "paymentMethod": "Начин на плащане",
+  "footer": "Powered by Sofia Padel | Тази фактура беше генерирана автоматично."
+}
