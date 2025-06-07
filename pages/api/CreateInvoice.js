@@ -94,7 +94,7 @@ export default async function handler(req, res) {
             const data = productDoc.data();
             if (data.name) productName = data.name;
             if (data.image_url) image_url = data.image_url;
-            if (data.brand_name) brand = data.brand_name;
+            if (data.brand_name) brand = data.brand;
           }
         }
         items.push({
