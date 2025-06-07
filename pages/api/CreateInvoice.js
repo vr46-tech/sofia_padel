@@ -81,6 +81,8 @@ export default async function handler(req, res) {
       const orderDoc = await getDoc(doc(db, "orders", orderId));
       if (!orderDoc.exists()) throw new Error("Order not found");
       const order = orderDoc.data();
+      console.log("Fetched order data for invoice:", data);
+
 
       // Prepare invoice items with all new fields, safely accessed
       const items = [];
