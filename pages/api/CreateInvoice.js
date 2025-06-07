@@ -82,18 +82,17 @@ export default async function handler(req, res) {
       if (!orderDoc.exists()) throw new Error("Order not found");
       const order = orderDoc.data();
 
-      // Use the currency from the order, fallback to BGN if missing
+      // Use the currency and language from the order, with fallbacks
       const currency = order.currency || "BGN";
+      const language = order.language || "en";
 
       // Prepare invoice items with all new fields, safely accessed
       const items = [];
       for (const item of order.items || []) {
-        console.log("Fetched order item for invoice:", item);
         let productName = item.name || "Unknown Product";
         let image_url = "";
         let brand = "";
         if (item.product_id) {
-          // Fetch product by custom "id" field if needed
           const q = query(collection(db, "products"), where("id", "==", item.product_id));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
@@ -165,6 +164,7 @@ export default async function handler(req, res) {
           }
           currency={currency}
           orderReference={order.order_number || orderId}
+          language={language}
         />
       );
 
@@ -200,6 +200,7 @@ export default async function handler(req, res) {
             ? "Pay by Card on Delivery"
             : "Cash on Delivery",
         currency,
+        language,
         createdAt: Timestamp.now(),
         pdfBase64,
       };
