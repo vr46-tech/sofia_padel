@@ -81,8 +81,6 @@ export default async function handler(req, res) {
       const orderDoc = await getDoc(doc(db, "orders", orderId));
       if (!orderDoc.exists()) throw new Error("Order not found");
       const order = orderDoc.data();
-      console.log("Fetched order data for invoice:", data);
-
 
       // Prepare invoice items with all new fields, safely accessed
       const items = [];
@@ -94,11 +92,10 @@ export default async function handler(req, res) {
           const productDoc = await getDoc(doc(db, "products", item.product_id));
           if (productDoc.exists()) {
             const data = productDoc.data();
-            console.log("Fetched product data for invoice:", data);
-            if (data.brand) productName = data.brand;
-            if (data.image_url) image_url = data.image_url;
-            // Fetch brand from either brand_name or brand, whichever is present
-            brand = data.brand || data.brand || "";
+            console.log("Product data for invoice:", data); // Debug log
+            if (data?.name) productName = data.name;
+            if (data?.image_url) image_url = data.image_url;
+            brand = data?.brand_name || data?.brand || "";
           }
         }
         items.push({
