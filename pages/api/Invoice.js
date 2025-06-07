@@ -5,7 +5,6 @@ import React from "react";
 import nodemailer from "nodemailer";
 import { InvoicePDF } from "../../components/pdf/InvoicePDF";
 
-// Firebase config and initialization (client SDK)
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -23,7 +22,6 @@ if (!getApps().length) {
 }
 const db = getFirestore(firebaseApp);
 
-// Helper to get the next unique invoice number
 async function getNextInvoiceNumber() {
   const counterRef = doc(db, "config", "invoiceCounter");
   let newNumber;
@@ -36,17 +34,14 @@ async function getNextInvoiceNumber() {
     newNumber = current;
     transaction.set(counterRef, { current: current + 1 }, { merge: true });
   });
-  // Format as string with leading zeros
   return newNumber.toString().padStart(10, "0");
 }
 
 export default async function handler(req, res) {
-  // CORS headers for all requests
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, x-api-key');
 
-  // Handle preflight
   if (req.method === 'OPTIONS') {
     res.status(204).end();
     return;
@@ -69,7 +64,7 @@ export default async function handler(req, res) {
   }
 
   try {
-    // 1. Check if invoice already exists for this order
+    // Check if invoice already exists for this order
     const invoicesRef = collection(db, "invoices");
     const existingInvoiceSnap = await getDocs(query(invoicesRef, where("orderId", "==", orderId)));
     let invoiceData, pdfBuffer, invoiceNumber, customerEmail;
@@ -80,16 +75,14 @@ export default async function handler(req, res) {
       invoiceData = invoiceDoc;
       invoiceNumber = invoiceDoc.invoiceNumber;
       customerEmail = invoiceDoc.user_email;
-      // Convert base64 back to Buffer
       pdfBuffer = Buffer.from(invoiceDoc.pdfBase64, "base64");
     } else {
       // Invoice does not exist: generate, store, and send
-      // Fetch order
       const orderDoc = await getDoc(doc(db, "orders", orderId));
       if (!orderDoc.exists()) throw new Error("Order not found");
       const order = orderDoc.data();
 
-      // Fetch product info for each item
+      // Prepare invoice items with all new fields
       const items = [];
       for (const item of order.items || []) {
         let productName = item.name;
@@ -104,23 +97,32 @@ export default async function handler(req, res) {
             if (data.brand_name) brand = data.brand_name;
           }
         }
+        // Use all new order item fields for the invoice
         items.push({
           name: productName,
           brand,
           quantity: item.quantity,
-          price: item.price,
+          unit_price: item.unit_price_gross ?? 0,
+          unit_price_net: item.unit_price_net ?? 0,
+          unit_vat_amount: item.unit_vat_amount ?? 0,
+          vat_rate: item.vat_rate ?? 0.2,
+          line_total_gross: item.line_total_gross ?? 0,
+          line_total_net: item.line_total_net ?? 0,
+          line_vat_amount: item.line_vat_amount ?? 0,
           image_url,
-          total: item.price * item.quantity,
+          // Include discount info if needed
+          discounted: item.discounted ?? false,
+          discount_percent: item.discount_percent ?? 0,
+          original_price_gross: item.original_price_gross ?? 0,
         });
       }
 
-      // Prepare invoice data
-      const subtotal = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
-      const shippingCost = order.shipping_cost || 0;
-      const basePrice = order.base_price || 0;
-      const totalBeforeVAT = subtotal + shippingCost + basePrice;
-      const vatAmount = totalBeforeVAT * 0.2;
-      const total = totalBeforeVAT + vatAmount;
+      // Use order's calculated totals (subtotal_gross, vat_total, total_gross)
+      const subtotal_net = order.subtotal_net ?? 0;
+      const subtotal_gross = order.subtotal_gross ?? 0;
+      const vat_total = order.vat_total ?? order.subtotal_vat_amount ?? 0;
+      const shipping_cost = order.shipping_cost ?? 0;
+      const total_gross = order.total_gross ?? 0;
 
       invoiceNumber = await getNextInvoiceNumber();
       const issueDate = new Date().toISOString().slice(0, 10);
@@ -144,25 +146,26 @@ export default async function handler(req, res) {
             phone: order.phone,
           }}
           items={items}
-          shippingCost={shippingCost}
-          basePrice={basePrice}
+          shippingCost={shipping_cost}
+          subtotalNet={subtotal_net}
+          subtotalGross={subtotal_gross}
+          vatTotal={vat_total}
+          total={total_gross}
           paymentMethod={
             order.payment_method === "card"
               ? "Pay by Card on Delivery"
               : "Cash on Delivery"
           }
           currency={currency}
-          orderReference={orderId}
+          orderReference={order.order_number || orderId}
         />
       );
 
-      // Convert PDF buffer to base64 for Firestore storage
       const pdfBase64 = pdfBuffer.toString("base64");
 
-      // Store invoice in Firestore
       invoiceData = {
         orderId,
-        orderReference: orderId,
+        orderReference: order.order_number || orderId,
         user_email: order.user_email,
         customer: {
           name: `${order.first_name} ${order.last_name}`,
@@ -180,11 +183,11 @@ export default async function handler(req, res) {
         invoiceNumber,
         issueDate,
         items,
-        subtotal,
-        shippingCost,
-        basePrice,
-        vatAmount,
-        total,
+        subtotalNet: subtotal_net,
+        subtotalGross: subtotal_gross,
+        vatTotal: vat_total,
+        shippingCost: shipping_cost,
+        total: total_gross,
         paymentMethod:
           order.payment_method === "card"
             ? "Pay by Card on Delivery"
@@ -212,8 +215,8 @@ export default async function handler(req, res) {
     await transporter.sendMail({
       from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
       to: recipientEmail || customerEmail,
-      subject: "Your Invoice - Sofia Padel",
-      text: `Thank you for your purchase! Your invoice is attached. Your order reference is: ${orderId}`,
+      subject: `Your Invoice - Sofia Padel`,
+      text: `Thank you for your purchase! Your invoice is attached. Your order reference is: ${invoiceData.orderReference}`,
       attachments: [
         {
           filename: `${invoiceNumber}.pdf`,
