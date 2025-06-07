@@ -83,39 +83,38 @@ export default async function handler(req, res) {
       const order = orderDoc.data();
 
       // Prepare invoice items with all new fields
-      const items = [];
-      for (const item of order.items || []) {
-        let productName = item.name;
-        let image_url = "";
-        let brand = "";
-        if (item.product_id) {
-          const productDoc = await getDoc(doc(db, "products", item.product_id));
-          if (productDoc.exists()) {
-            const data = productDoc.data();
-            if (data.name) productName = data.name;
-            if (data.image_url) image_url = data.image_url;
-            if (data.brand_name) brand = data.brand_name;
-          }
-        }
-        // Use all new order item fields for the invoice
-        items.push({
-          name: productName,
-          brand,
-          quantity: item.quantity,
-          unit_price: item.unit_price_gross ?? 0,
-          unit_price_net: item.unit_price_net ?? 0,
-          unit_vat_amount: item.unit_vat_amount ?? 0,
-          vat_rate: item.vat_rate ?? 0.2,
-          line_total_gross: item.line_total_gross ?? 0,
-          line_total_net: item.line_total_net ?? 0,
-          line_vat_amount: item.line_vat_amount ?? 0,
-          image_url,
-          // Include discount info if needed
-          discounted: item.discounted ?? false,
-          discount_percent: item.discount_percent ?? 0,
-          original_price_gross: item.original_price_gross ?? 0,
-        });
-      }
+      // Prepare invoice items with all new fields, safely formatted
+const items = (order.items || []).map(item => {
+  const productName = item.name || "Unknown Product";
+  let image_url = "";
+  let brand = "";
+  if (item.product_id) {
+    const productDoc = await getDoc(doc(db, "products", item.product_id));
+    if (productDoc.exists()) {
+      const data = productDoc.data();
+      if (data.name) productName = data.name;
+      if (data.image_url) image_url = data.image_url;
+      if (data.brand_name) brand = data.brand_name;
+    }
+  }
+  return {
+    name: productName,
+    brand,
+    quantity: item.quantity,
+    unit_price: (item.unit_price_gross ?? 0).toFixed(2),
+    unit_price_net: (item.unit_price_net ?? 0).toFixed(2),
+    unit_vat_amount: (item.unit_vat_amount ?? 0).toFixed(2),
+    vat_rate: (item.vat_rate ?? 0).toFixed(2),
+    line_total_gross: (item.line_total_gross ?? 0).toFixed(2),
+    line_total_net: (item.line_total_net ?? 0).toFixed(2),
+    line_vat_amount: (item.line_vat_amount ?? 0).toFixed(2),
+    image_url,
+    discounted: item.discounted ?? false,
+    discount_percent: (item.discount_percent ?? 0).toFixed(2),
+    original_price_gross: (item.original_price_gross ?? 0).toFixed(2),
+  };
+});
+
 
       // Use order's calculated totals (subtotal_gross, vat_total, total_gross)
       const subtotal_net = order.subtotal_net ?? 0;
