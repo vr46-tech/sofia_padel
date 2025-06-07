@@ -7,6 +7,7 @@ import {
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
+import i18next from "../i18n"; // Adjust path as needed
 
 Font.register({
   family: "Lato",
@@ -67,7 +68,11 @@ export const InvoicePDF = ({
   currency = "BGN",
   orderReference,
   notes = "Thank you for your business!",
+  language = "en",
 }) => {
+  // Set the language before rendering
+  i18next.changeLanguage(language);
+
   const shippingAndHandling = shippingCost ?? 0;
   const totalBeforeVAT = subtotalGross ?? 0;
   const vatAmount = vatTotal ?? 0;
@@ -82,6 +87,11 @@ export const InvoicePDF = ({
     brand: item.brand ?? "",
   }));
 
+  // For "FREE" shipping, use a translation if you want, or keep as is
+  const shippingText = shippingAndHandling > 0
+    ? `${shippingAndHandling.toFixed(2)} ${currency}`
+    : "FREE";
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
@@ -93,16 +103,16 @@ export const InvoicePDF = ({
             <Text>VAT: {company.vatNumber}</Text>
           </View>
           <View style={styles.invoiceBlock}>
-            <Text style={{ fontWeight: "bold", fontSize: 16 }}>INVOICE</Text>
-            <Text>Invoice #: {invoiceNumber}</Text>
-            <Text>Date: {formatDate(issueDate)}</Text>
-            {dueDate && <Text>Due Date: {formatDate(dueDate)}</Text>}
-            <Text>Order Ref: {orderReference}</Text>
+            <Text style={{ fontWeight: "bold", fontSize: 16 }}>{i18next.t("invoice")}</Text>
+            <Text>{i18next.t("invoiceNumber")}: {invoiceNumber}</Text>
+            <Text>{i18next.t("date")}: {formatDate(issueDate)}</Text>
+            {dueDate && <Text>{i18next.t("dueDate")}: {formatDate(dueDate)}</Text>}
+            <Text>{i18next.t("orderReference")}: {orderReference}</Text>
           </View>
         </View>
 
         <View style={styles.billTo}>
-          <Text style={{ fontWeight: "bold" }}>BILL TO:</Text>
+          <Text style={{ fontWeight: "bold" }}>{i18next.t("billTo")}:</Text>
           <Text>{customer.name}</Text>
           <Text>{customer.address}</Text>
           <Text>{customer.city} {customer.postalCode}</Text>
@@ -111,11 +121,11 @@ export const InvoicePDF = ({
 
         <View style={styles.table}>
           <View style={[styles.tableRow, styles.tableHeader]}>
-            <Text style={[styles.cell, { flex: 2 }]}>ITEM</Text>
-            <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>QUANTITY</Text>
-            <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>PRICE</Text>
-            <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>TAX</Text>
-            <Text style={[styles.cell, styles.cellRight, styles.lastCell, { flex: 1 }]}>AMOUNT</Text>
+            <Text style={[styles.cell, { flex: 2 }]}>{i18next.t("item")}</Text>
+            <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>{i18next.t("quantity")}</Text>
+            <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>{i18next.t("price")}</Text>
+            <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>{i18next.t("tax")}</Text>
+            <Text style={[styles.cell, styles.cellRight, styles.lastCell, { flex: 1 }]}>{i18next.t("amount")}</Text>
           </View>
           {safeItems.map((item, idx) => (
             <View key={idx} style={styles.tableRow}>
@@ -138,25 +148,25 @@ export const InvoicePDF = ({
 
         <View>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Subtotal:</Text>
+            <Text style={styles.totalsLabel}>{i18next.t("subtotal")}:</Text>
             <Text style={styles.totalsValue}>
               {(subtotalGross ?? 0).toFixed(2)} {currency}
             </Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>Shipping & Handling:</Text>
+            <Text style={styles.totalsLabel}>{i18next.t("shippingAndHandling")}:</Text>
             <Text style={styles.totalsValue}>
-              {shippingAndHandling > 0 ? `${shippingAndHandling.toFixed(2)} ${currency}` : "FREE"}
+              {shippingText}
             </Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text style={styles.totalsLabel}>VAT:</Text>
+            <Text style={styles.totalsLabel}>{i18next.t("vat")}:</Text>
             <Text style={styles.totalsValue}>
               {(vatAmount ?? 0).toFixed(2)} {currency}
             </Text>
           </View>
           <View style={styles.totalsRow}>
-            <Text style={[styles.totalsLabel, { fontSize: 13 }]}>TOTAL:</Text>
+            <Text style={[styles.totalsLabel, { fontSize: 13 }]}>{i18next.t("total")}:</Text>
             <Text style={[styles.totalsValue, { fontSize: 13 }]}>
               {(finalTotal ?? 0).toFixed(2)} {currency}
             </Text>
@@ -164,16 +174,16 @@ export const InvoicePDF = ({
         </View>
 
         <View style={styles.notes}>
-          <Text>NOTES:</Text>
+          <Text>{i18next.t("notes")}:</Text>
           <Text>{notes}</Text>
         </View>
 
         <View style={styles.notes}>
-          <Text>Payment Method: {paymentMethod}</Text>
+          <Text>{i18next.t("paymentMethod")}: {paymentMethod}</Text>
         </View>
 
         <Text style={styles.footer}>
-          Powered by Sofia Padel | This invoice was generated electronically.
+          {i18next.t("footer")}
         </Text>
       </Page>
     </Document>
