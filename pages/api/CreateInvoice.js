@@ -115,7 +115,7 @@ export default async function handler(req, res) {
         });
       }
 
-      // Use order's calculated totals (subtotal_gross, vat_total, total_gross)
+      // Use order's calculated totals
       const subtotal_net = order.subtotal_net ?? 0;
       const subtotal_gross = order.subtotal_gross ?? 0;
       const vat_total = order.vat_total ?? order.subtotal_vat_amount ?? 0;
