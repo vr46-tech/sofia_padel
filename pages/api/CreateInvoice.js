@@ -57,7 +57,7 @@ export default async function handler(req, res) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const { orderId, currency = "BGN", recipientEmail } = req.body;
+  const { orderId, recipientEmail } = req.body;
   if (!orderId) {
     res.status(400).json({ message: "Missing orderId in request body" });
     return;
@@ -82,6 +82,9 @@ export default async function handler(req, res) {
       if (!orderDoc.exists()) throw new Error("Order not found");
       const order = orderDoc.data();
 
+      // Use the currency from the order, fallback to BGN if missing
+      const currency = order.currency || "BGN";
+
       // Prepare invoice items with all new fields, safely accessed
       const items = [];
       for (const item of order.items || []) {
@@ -90,15 +93,16 @@ export default async function handler(req, res) {
         let image_url = "";
         let brand = "";
         if (item.product_id) {
-  const q = query(collection(db, "products"), where("id", "==", item.product_id));
-  const querySnapshot = await getDocs(q);
-  if (!querySnapshot.empty) {
-    const data = querySnapshot.docs[0].data();
-    if (data?.name) productName = data.name;
-    if (data?.image_url) image_url = data.image_url;
-    brand = data?.brand_name || data?.brand || "";
-  }
-}
+          // Fetch product by custom "id" field if needed
+          const q = query(collection(db, "products"), where("id", "==", item.product_id));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const data = querySnapshot.docs[0].data();
+            if (data?.name) productName = data.name;
+            if (data?.image_url) image_url = data.image_url;
+            brand = data?.brand_name || data?.brand || "";
+          }
+        }
         items.push({
           name: productName,
           brand,
