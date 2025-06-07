@@ -10,16 +10,14 @@ import {
 import i18next from '../../i18n';
 
 Font.register({
-  family: "Lato",
-  fonts: [
-    { src: "https://fonts.gstatic.com/s/lato/v24/S6uyw4BMUTPHjx4wWw.ttf" },
-    { src: "https://fonts.gstatic.com/s/lato/v24/S6u9w4BMUTPHh6UVSwiPHA.ttf", fontWeight: 700 },
-  ],
+  family: 'Roboto',
+  src: 'https://cdnjs.cloudflare.com/ajax/libs/ink/3.1.10/fonts/Roboto/roboto-regular-webfont.ttf',
 });
+
 
 const styles = StyleSheet.create({
   page: {
-    fontFamily: "Lato",
+    fontFamily: "Roboto",
     fontSize: 11,
     padding: 32,
     backgroundColor: "#fff",
