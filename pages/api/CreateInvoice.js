@@ -125,6 +125,9 @@ export default async function handler(req, res) {
       invoiceNumber = await getNextInvoiceNumber();
       const issueDate = new Date().toISOString().slice(0, 10);
 
+      // Debug: Log the items structure before generating PDF
+      console.log("Invoice items before PDF generation:", JSON.stringify(items, null, 2));
+
       // Generate PDF buffer
       pdfBuffer = await renderToBuffer(
         <InvoicePDF
