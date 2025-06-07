@@ -94,7 +94,7 @@ export default async function handler(req, res) {
             const data = productDoc.data();
             if (data.name) productName = data.name;
             if (data.image_url) image_url = data.image_url;
-            // Use brand_name or brand, whichever is present in your Firestore
+            // Fetch brand from either brand_name or brand, whichever is present
             brand = data.brand_name || data.brand || "";
           }
         }
@@ -108,7 +108,7 @@ export default async function handler(req, res) {
           vat_rate: item.vat_rate ?? 0.2,
           line_total_gross: item.line_total_gross ?? 0,
           line_total_net: item.line_total_net ?? 0,
-          line_vat_amount: item.line_total_vat_amount ?? item.line_vat_amount ?? 0,
+          line_vat_amount: item.line_vat_amount ?? 0,
           image_url,
           discounted: item.discounted ?? false,
           discount_percent: item.discount_percent ?? 0,
