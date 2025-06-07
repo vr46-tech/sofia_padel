@@ -92,6 +92,7 @@ export default async function handler(req, res) {
           const productDoc = await getDoc(doc(db, "products", item.product_id));
           if (productDoc.exists()) {
             const data = productDoc.data();
+            console.log("Fetched product data for invoice:", data);
             if (data.brand) productName = data.brand;
             if (data.image_url) image_url = data.image_url;
             // Fetch brand from either brand_name or brand, whichever is present
