@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { InvoicePDF } from "../../components/pdf/InvoicePDF";
 
+// Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -25,6 +26,7 @@ if (!getApps().length) {
 }
 const db = getFirestore(firebaseApp);
 
+// Helper: Get next invoice number (auto-increment)
 async function getNextInvoiceNumber() {
   const counterRef = doc(db, "config", "invoiceCounter");
   let newNumber;
@@ -40,12 +42,14 @@ async function getNextInvoiceNumber() {
   return newNumber.toString().padStart(10, "0");
 }
 
+// Helper: Prepare items for the template (fetch product info if needed)
 async function prepareItemsWithProductNames(orderItems) {
   const itemsWithNames = [];
   for (const item of orderItems || []) {
     let displayName = item.name || "Unknown Product";
     try {
       if (item.product_id) {
+        // Try by document ID
         const productDocRef = doc(db, "products", item.product_id);
         const productDoc = await getDoc(productDocRef);
         if (productDoc.exists()) {
@@ -54,6 +58,7 @@ async function prepareItemsWithProductNames(orderItems) {
           const modelName = productData.name || displayName;
           displayName = brandName ? `${brandName} ${modelName}` : modelName;
         } else {
+          // Fallback: query by 'id' field
           const q = query(collection(db, "products"), where("id", "==", item.product_id));
           const querySnapshot = await getDocs(q);
           if (!querySnapshot.empty) {
@@ -65,23 +70,18 @@ async function prepareItemsWithProductNames(orderItems) {
         }
       }
     } catch (error) {
-      // fallback to item.name
+      // Ignore product lookup errors, fallback to item.name
     }
     itemsWithNames.push({
       item_name: displayName,
       quantity: item.quantity,
-      item_price_gross: (item.line_total_gross ?? 0).toFixed(2),
-      item_price_net: (item.line_total_net ?? 0).toFixed(2),  // <-- Added net price here
-      unit_price_gross: (item.unit_price_gross ?? 0).toFixed(2),
-      unit_price_net: (item.unit_price_net ?? 0).toFixed(2),    // <-- Added net unit price here
-      vat_rate: (item.vat_rate ?? 0) * 100,                    // e.g. 0.2 -> 20
-      discounted: item.discounted || false,
-      discount_percent: item.discount_percent || 0,
+      item_price: (item.line_total_gross ?? 0).toFixed(2),
     });
   }
   return itemsWithNames;
 }
 
+// Main handler
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -108,25 +108,30 @@ export default async function handler(req, res) {
   }
 
   try {
+    // Check if invoice already exists for this order
     const invoicesRef = collection(db, "invoices");
     const existingInvoiceSnap = await getDocs(query(invoicesRef, where("orderId", "==", orderId)));
     let invoiceData, pdfBuffer, invoiceNumber, customerEmail, order, items;
 
     if (!existingInvoiceSnap.empty) {
+      // Invoice exists: re-send it
       const invoiceDoc = existingInvoiceSnap.docs[0].data();
       invoiceData = invoiceDoc;
       invoiceNumber = invoiceDoc.invoiceNumber;
       customerEmail = invoiceDoc.user_email;
       pdfBuffer = Buffer.from(invoiceDoc.pdfBase64, "base64");
-      order = null;
+      order = null; // Not needed for HTML template if already sent
       items = invoiceDoc.items || [];
     } else {
+      // Invoice does not exist: generate, store, and send
       const orderDoc = await getDoc(doc(db, "orders", orderId));
       if (!orderDoc.exists()) throw new Error("Order not found");
       order = orderDoc.data();
 
+      // Prepare invoice items with product names
       items = await prepareItemsWithProductNames(order.items);
 
+      // Use order's calculated totals
       const subtotal_net = order.subtotal_net ?? 0;
       const subtotal_gross = order.subtotal_gross ?? 0;
       const vat_total = order.vat_total ?? order.subtotal_vat_amount ?? 0;
@@ -136,7 +141,7 @@ export default async function handler(req, res) {
       invoiceNumber = await getNextInvoiceNumber();
       const issueDate = new Date().toISOString().slice(0, 10);
 
-      // Pass items with net and gross prices to PDF component
+      // Generate PDF buffer
       pdfBuffer = await renderToBuffer(
         <InvoicePDF
           invoiceNumber={invoiceNumber}
@@ -155,7 +160,7 @@ export default async function handler(req, res) {
             city: "Sofia",
             vatNumber: "BG123456789",
           }}
-          items={items}  // <-- items now contain net and gross prices
+          items={order.items}
           subtotalNet={subtotal_net}
           subtotalGross={subtotal_gross}
           vatTotal={vat_total}
@@ -170,7 +175,6 @@ export default async function handler(req, res) {
           language={order.language || "en"}
         />
       );
-
       const pdfBase64 = pdfBuffer.toString("base64");
 
       invoiceData = {
@@ -192,7 +196,7 @@ export default async function handler(req, res) {
         },
         invoiceNumber,
         issueDate,
-        items,
+        items: order.items,
         subtotalNet: subtotal_net,
         subtotalGross: subtotal_gross,
         vatTotal: vat_total,
@@ -211,6 +215,7 @@ export default async function handler(req, res) {
       customerEmail = order.user_email;
     }
 
+    // --- HTML Email Template Integration ---
     // Load and compile the HTML template
     const templateSource = fs.readFileSync(
       path.join(process.cwd(), "public", "orderShipmentTemplate.html"),
@@ -218,9 +223,11 @@ export default async function handler(req, res) {
     );
     const template = handlebars.compile(templateSource);
 
-    // If order not loaded (re-send), fetch order for template data
+    // Prepare data for the template
+    // If order is not loaded (re-send), fetch order for template data
     let orderData = order;
     if (!orderData) {
+      // Fetch order for template if not present
       const orderDoc = await getDoc(doc(db, "orders", orderId));
       if (!orderDoc.exists()) throw new Error("Order not found (for HTML template)");
       orderData = orderDoc.data();
@@ -229,18 +236,8 @@ export default async function handler(req, res) {
     const templateData = {
       first_name: orderData.first_name,
       order_id: orderData.order_number || orderId,
-      items: items.map(i => ({
-        item_name: i.item_name,
-        quantity: i.quantity,
-        unit_price_net: i.unit_price_net,
-        unit_price_gross: i.unit_price_gross,
-        item_price_net: i.item_price_net,
-        item_price_gross: i.item_price_gross,
-        vat_rate: i.vat_rate,
-        discounted: i.discounted,
-        discount_percent: i.discount_percent,
-      })),
-      sub_total: (orderData.subtotal_net ?? 0).toFixed(2),  // show net subtotal
+      items: items,
+      sub_total: (orderData.subtotal_gross ?? 0).toFixed(2),
       shipping: (orderData.shipping_cost ?? 0).toFixed(2),
       total: (orderData.total_gross ?? 0).toFixed(2),
       shipping_address: `${orderData.address}, ${orderData.city}`,
@@ -249,8 +246,10 @@ export default async function handler(req, res) {
       payment_method: orderData.payment_method || "",
     };
 
+    // Render the HTML content
     const htmlContent = template(templateData);
 
+    // Send email with HTML body and PDF attachment
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT,
@@ -264,7 +263,7 @@ export default async function handler(req, res) {
     await transporter.sendMail({
       from: `"Sofia Padel" <${process.env.SMTP_USER}>`,
       to: recipientEmail || customerEmail,
-      subject: `Your Invoice - Sofia Padel`,
+      subject: `Your So Padel order has been shipped`,
       text: `Thank you for your purchase! Your invoice is attached. Your order reference is: ${invoiceData.orderReference}`,
       html: htmlContent,
       attachments: [
