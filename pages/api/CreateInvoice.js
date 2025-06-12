@@ -3,8 +3,12 @@ import { getFirestore, doc, getDoc, collection, addDoc, query, where, getDocs, T
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
 import nodemailer from "nodemailer";
+import handlebars from "handlebars";
+import fs from "fs";
+import path from "path";
 import { InvoicePDF } from "../../components/pdf/InvoicePDF";
 
+// Firebase configuration
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -22,6 +26,7 @@ if (!getApps().length) {
 }
 const db = getFirestore(firebaseApp);
 
+// Helper: Get next invoice number (auto-increment)
 async function getNextInvoiceNumber() {
   const counterRef = doc(db, "config", "invoiceCounter");
   let newNumber;
@@ -37,6 +42,46 @@ async function getNextInvoiceNumber() {
   return newNumber.toString().padStart(10, "0");
 }
 
+// Helper: Prepare items for the template (fetch product info if needed)
+async function prepareItemsWithProductNames(orderItems) {
+  const itemsWithNames = [];
+  for (const item of orderItems || []) {
+    let displayName = item.name || "Unknown Product";
+    try {
+      if (item.product_id) {
+        // Try by document ID
+        const productDocRef = doc(db, "products", item.product_id);
+        const productDoc = await getDoc(productDocRef);
+        if (productDoc.exists()) {
+          const productData = productDoc.data();
+          const brandName = productData.brand || "";
+          const modelName = productData.name || displayName;
+          displayName = brandName ? `${brandName} ${modelName}` : modelName;
+        } else {
+          // Fallback: query by 'id' field
+          const q = query(collection(db, "products"), where("id", "==", item.product_id));
+          const querySnapshot = await getDocs(q);
+          if (!querySnapshot.empty) {
+            const productData = querySnapshot.docs[0].data();
+            const brandName = productData.brand || "";
+            const modelName = productData.name || displayName;
+            displayName = brandName ? `${brandName} ${modelName}` : modelName;
+          }
+        }
+      }
+    } catch (error) {
+      // Ignore product lookup errors, fallback to item.name
+    }
+    itemsWithNames.push({
+      item_name: displayName,
+      quantity: item.quantity,
+      item_price: (item.line_total_gross ?? 0).toFixed(2),
+    });
+  }
+  return itemsWithNames;
+}
+
+// Main handler
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
@@ -46,7 +91,6 @@ export default async function handler(req, res) {
     res.status(204).end();
     return;
   }
-
   if (req.method !== "POST") {
     res.status(405).json({ message: "Method Not Allowed" });
     return;
@@ -67,7 +111,7 @@ export default async function handler(req, res) {
     // Check if invoice already exists for this order
     const invoicesRef = collection(db, "invoices");
     const existingInvoiceSnap = await getDocs(query(invoicesRef, where("orderId", "==", orderId)));
-    let invoiceData, pdfBuffer, invoiceNumber, customerEmail;
+    let invoiceData, pdfBuffer, invoiceNumber, customerEmail, order, items;
 
     if (!existingInvoiceSnap.empty) {
       // Invoice exists: re-send it
@@ -76,49 +120,16 @@ export default async function handler(req, res) {
       invoiceNumber = invoiceDoc.invoiceNumber;
       customerEmail = invoiceDoc.user_email;
       pdfBuffer = Buffer.from(invoiceDoc.pdfBase64, "base64");
+      order = null; // Not needed for HTML template if already sent
+      items = invoiceDoc.items || [];
     } else {
       // Invoice does not exist: generate, store, and send
       const orderDoc = await getDoc(doc(db, "orders", orderId));
       if (!orderDoc.exists()) throw new Error("Order not found");
-      const order = orderDoc.data();
+      order = orderDoc.data();
 
-      // Use the currency and language from the order, with fallbacks
-      const currency = order.currency || "BGN";
-      const language = order.language || "en";
-
-      // Prepare invoice items with all new fields, safely accessed
-      const items = [];
-      for (const item of order.items || []) {
-        let productName = item.name || "Unknown Product";
-        let image_url = "";
-        let brand = "";
-        if (item.product_id) {
-          const q = query(collection(db, "products"), where("id", "==", item.product_id));
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-            const data = querySnapshot.docs[0].data();
-            if (data?.name) productName = data.name;
-            if (data?.image_url) image_url = data.image_url;
-            brand = data?.brand_name || data?.brand || "";
-          }
-        }
-        items.push({
-          name: productName,
-          brand,
-          quantity: item.quantity,
-          unit_price: item.unit_price_gross ?? 0,
-          unit_price_net: item.unit_price_net ?? 0,
-          unit_vat_amount: item.unit_vat_amount ?? 0,
-          vat_rate: item.vat_rate ?? 0.2,
-          line_total_gross: item.line_total_gross ?? 0,
-          line_total_net: item.line_total_net ?? 0,
-          line_vat_amount: item.line_vat_amount ?? 0,
-          image_url,
-          discounted: item.discounted ?? false,
-          discount_percent: item.discount_percent ?? 0,
-          original_price_gross: item.original_price_gross ?? 0,
-        });
-      }
+      // Prepare invoice items with product names
+      items = await prepareItemsWithProductNames(order.items);
 
       // Use order's calculated totals
       const subtotal_net = order.subtotal_net ?? 0;
@@ -130,20 +141,12 @@ export default async function handler(req, res) {
       invoiceNumber = await getNextInvoiceNumber();
       const issueDate = new Date().toISOString().slice(0, 10);
 
-      // Debug: Log the items structure before generating PDF
-      console.log("Invoice items before PDF generation:", JSON.stringify(items, null, 2));
-
       // Generate PDF buffer
       pdfBuffer = await renderToBuffer(
         <InvoicePDF
           invoiceNumber={invoiceNumber}
           issueDate={issueDate}
-          company={{
-            name: "Sofia Padel",
-            address: "123 Avenue Padel",
-            city: "Sofia",
-            vatNumber: "BG123456789",
-          }}
+          orderReference={order.order_number || orderId}
           customer={{
             name: `${order.first_name} ${order.last_name}`,
             address: order.address,
@@ -151,23 +154,27 @@ export default async function handler(req, res) {
             postalCode: order.postal_code,
             phone: order.phone,
           }}
-          items={items}
-          shippingCost={shipping_cost}
+          company={{
+            name: "Sofia Padel",
+            address: "123 Avenue Padel",
+            city: "Sofia",
+            vatNumber: "BG123456789",
+          }}
+          items={order.items}
           subtotalNet={subtotal_net}
           subtotalGross={subtotal_gross}
           vatTotal={vat_total}
+          shippingCost={shipping_cost}
           total={total_gross}
           paymentMethod={
             order.payment_method === "card"
               ? "Pay by Card on Delivery"
               : "Cash on Delivery"
           }
-          currency={currency}
-          orderReference={order.order_number || orderId}
-          language={language}
+          currency={order.currency || "BGN"}
+          language={order.language || "en"}
         />
       );
-
       const pdfBase64 = pdfBuffer.toString("base64");
 
       invoiceData = {
@@ -189,7 +196,7 @@ export default async function handler(req, res) {
         },
         invoiceNumber,
         issueDate,
-        items,
+        items: order.items,
         subtotalNet: subtotal_net,
         subtotalGross: subtotal_gross,
         vatTotal: vat_total,
@@ -199,17 +206,50 @@ export default async function handler(req, res) {
           order.payment_method === "card"
             ? "Pay by Card on Delivery"
             : "Cash on Delivery",
-        currency,
-        language,
+        currency: order.currency || "BGN",
+        language: order.language || "en",
         createdAt: Timestamp.now(),
         pdfBase64,
       };
-
       await addDoc(invoicesRef, invoiceData);
       customerEmail = order.user_email;
     }
 
-    // Send email with PDF attached
+    // --- HTML Email Template Integration ---
+    // Load and compile the HTML template
+    const templateSource = fs.readFileSync(
+      path.join(process.cwd(), "public", "orderShipmentTemplate.html"),
+      "utf8"
+    );
+    const template = handlebars.compile(templateSource);
+
+    // Prepare data for the template
+    // If order is not loaded (re-send), fetch order for template data
+    let orderData = order;
+    if (!orderData) {
+      // Fetch order for template if not present
+      const orderDoc = await getDoc(doc(db, "orders", orderId));
+      if (!orderDoc.exists()) throw new Error("Order not found (for HTML template)");
+      orderData = orderDoc.data();
+    }
+
+    const templateData = {
+      first_name: orderData.first_name,
+      order_id: orderData.order_number || orderId,
+      items: items,
+      sub_total: (orderData.subtotal_gross ?? 0).toFixed(2),
+      shipping: (orderData.shipping_cost ?? 0).toFixed(2),
+      total: (orderData.total_gross ?? 0).toFixed(2),
+      shipping_address: `${orderData.address}, ${orderData.city}`,
+      billing_address: `${orderData.address}, ${orderData.city}`,
+      shipping_method: orderData.delivery_option || "",
+      payment_method: orderData.payment_method || "",
+    };
+
+    // Render the HTML content
+    const htmlContent = template(templateData);
+
+    // Send email with HTML body and PDF attachment
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: process.env.SMTP_PORT,
@@ -225,6 +265,7 @@ export default async function handler(req, res) {
       to: recipientEmail || customerEmail,
       subject: `Your Invoice - Sofia Padel`,
       text: `Thank you for your purchase! Your invoice is attached. Your order reference is: ${invoiceData.orderReference}`,
+      html: htmlContent,
       attachments: [
         {
           filename: `${invoiceNumber}.pdf`,
