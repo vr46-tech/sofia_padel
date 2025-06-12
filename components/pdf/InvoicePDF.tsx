@@ -132,13 +132,13 @@ export const InvoicePDF = ({
               </Text>
               <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>{item.quantity}</Text>
               <Text style={[styles.cell, styles.cellRight, { flex: 1 }]}>
-                {(item.unit_price ?? 0).toFixed(2)} {currency}
+                {(item.unit_price_net ?? 0).toFixed(2)} {currency}
               </Text>
               <Text style={[styles.cell, styles.cellCenter, { flex: 0.7 }]}>
                 {((item.vat_rate ?? 0) * 100).toFixed(0)}%
               </Text>
               <Text style={[styles.cell, styles.cellRight, styles.lastCell, { flex: 1 }]}>
-                {(item.line_total_gross ?? 0).toFixed(2)} {currency}
+                {(item.line_total_net ?? 0).toFixed(2)} {currency}
               </Text>
             </View>
           ))}
@@ -148,7 +148,7 @@ export const InvoicePDF = ({
           <View style={styles.totalsRow}>
             <Text style={styles.totalsLabel}>{i18next.t("subtotal")}:</Text>
             <Text style={styles.totalsValue}>
-              {(subtotalGross ?? 0).toFixed(2)} {currency}
+              {(subtotalNet ?? 0).toFixed(2)} {currency}
             </Text>
           </View>
           <View style={styles.totalsRow}>
