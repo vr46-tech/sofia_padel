@@ -6,6 +6,7 @@ export default async function handler(req, res) {
   }
 
   const { term, countryId } = req.body;
+
   if (!term) {
     return res.status(400).json({ error: 'Missing search term.' });
   }
@@ -17,7 +18,7 @@ export default async function handler(req, res) {
         userName: process.env.SPEEDY_USER,
         password: process.env.SPEEDY_PASS,
         language: 'EN',
-        countryId: countryId || 100, // Default to Bulgaria if not provided
+        countryId: countryId || 100,
         name: term
       },
       {
@@ -25,8 +26,18 @@ export default async function handler(req, res) {
       }
     );
 
-    res.status(200).json(response.data.sites || []);
+    return res.status(200).json(response.data.sites || []);
   } catch (error) {
-    res.status(500).json({ error: error.response?.data?.error || error.message });
+    console.error('Speedy API error:', {
+      message: error.message,
+      responseData: error.response?.data || null,
+      status: error.response?.status || null,
+      stack: error.stack
+    });
+
+    return res.status(500).json({
+      error: 'Speedy API request failed',
+      details: error.response?.data || error.message
+    });
   }
 }
