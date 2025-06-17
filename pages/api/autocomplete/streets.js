@@ -8,7 +8,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await axios.post(
-      'https://services.speedy.bg/api/location/street/',
+      'https://api.speedy.bg/v1/location/street/',
       {
         userName: process.env.SPEEDY_USER,
         password: process.env.SPEEDY_PASS,
