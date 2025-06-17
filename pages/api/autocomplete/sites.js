@@ -13,7 +13,7 @@ export default async function handler(req, res) {
 
   try {
     const response = await axios.post(
-      'https://services.speedy.bg/api/location/site/',
+      'https://api.speedy.bg/v1/location/site/',
       {
         userName: process.env.SPEEDY_USER,
         password: process.env.SPEEDY_PASS,
