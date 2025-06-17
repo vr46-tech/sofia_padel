@@ -1,7 +1,11 @@
 import axios from 'axios';
 
 export default async function handler(req, res) {
-  const { siteId, term } = req.query;
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Method Not Allowed. Use POST.' });
+  }
+
+  const { siteId, term } = req.body;
   if (!siteId || !term) {
     return res.status(400).json({ error: 'Missing siteId or term.' });
   }
