@@ -8,11 +8,12 @@ export default async function handler(req, res) {
 
   try {
     const response = await axios.post(
-      'https://api.speedy.bg/v1/location/site/',
+      'https://services.speedy.bg/api/location/site/',
       {
         userName: process.env.SPEEDY_USER,
         password: process.env.SPEEDY_PASS,
         language: 'EN',
+        countryId: 100,  // Added countryId as required by Speedy.bg API
         name: term
       },
       {
