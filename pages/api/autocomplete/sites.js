@@ -19,7 +19,7 @@ export default async function handler(req, res) {
         password: process.env.SPEEDY_PASS,
         language: 'EN',
         countryId: countryId || 100,
-        name: term
+        postCode: term
       },
       {
         headers: { 'Content-Type': 'application/json' }
