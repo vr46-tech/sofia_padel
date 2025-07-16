@@ -6,7 +6,7 @@ const cache = {
   allProducts: { data: null, timestamp: 0 },
   singleProducts: {}, // Cache individual products by ID
   categoryProducts: {}, // Cache products by category ID
-  ttl: 10 * 60 * 1000 // 10 minutes in ms
+  ttl: 1 * 60 * 1000 // 10 minutes in ms
 };
 
 // Firebase config (reuse your existing config)
