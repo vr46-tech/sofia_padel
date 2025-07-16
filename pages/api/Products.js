@@ -1,14 +1,12 @@
 import { initializeApp, getApps } from "firebase/app";
-import { getFirestore, collection, getDocs, doc, getDoc, updateDoc } from "firebase/firestore";
+import { getFirestore, collection, getDocs, doc, getDoc, updateDoc, query, where } from "firebase/firestore";
 
 // Enhanced cache structure
 const cache = {
-  allProducts: {
-    data: null,
-    timestamp: 0
-  },
-  singleProducts: {}, // Stores individual products by ID
-  ttl: 10 * 60 * 1000 // 10 minutes in milliseconds
+  allProducts: { data: null, timestamp: 0 },
+  singleProducts: {}, // Cache individual products by ID
+  categoryProducts: {}, // Cache products by category ID
+  ttl: 10 * 60 * 1000 // 10 minutes in ms
 };
 
 // Firebase config (reuse your existing config)
@@ -20,6 +18,7 @@ const firebaseConfig = {
   messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.FIREBASE_APP_ID,
 };
+
 let firebaseApp;
 if (!getApps().length) {
   firebaseApp = initializeApp(firebaseConfig);
@@ -117,48 +116,70 @@ export default async function handler(req, res) {
       await updateDoc(productRef, updateData);
 
       // Invalidate relevant cache entries
-      delete cache.singleProducts[id];  // Remove single product from cache
-      cache.allProducts.data = null;    // Invalidate all products list
+      delete cache.singleProducts[id]; // Remove single product from cache
+      cache.allProducts.data = null; // Invalidate all products list
       cache.allProducts.timestamp = 0;
+      // Invalidate all category caches (simple strategy)
+      cache.categoryProducts = {}; 
 
       res.status(200).json({ success: true });
       return;
     }
 
-    // --- GET: Single or All Products ---
+    // --- GET: Single, All, or By Category ---
     if (req.method === 'GET') {
-      const { id } = req.query;
+      const { id, category_id } = req.query;
       const now = Date.now();
 
       if (id) {
         // Single product with caching
         const cachedProduct = cache.singleProducts[id];
-        
         if (cachedProduct && now - cachedProduct.timestamp < cache.ttl) {
           res.status(200).json(cachedProduct.data);
           return;
         }
-
         const productDoc = await getDoc(doc(db, "products", id));
         if (!productDoc.exists()) {
           res.status(404).json({ error: "Product not found" });
           return;
         }
-
         const product = calculateFinalPrice(productDoc.data());
-        cache.singleProducts[id] = { 
-          data: product, 
-          timestamp: now 
+        cache.singleProducts[id] = {
+          data: product,
+          timestamp: now
+        };
+        res.status(200).json(product);
+        return;
+      } else if (category_id) {
+        // Products by category with caching
+        const cachedCategory = cache.categoryProducts[category_id];
+        if (cachedCategory && now - cachedCategory.timestamp < cache.ttl) {
+          res.status(200).json(cachedCategory.data);
+          return;
+        }
+        const productsQuery = query(
+          collection(db, "products"),
+          where("category_id", "==", category_id)
+        );
+        const querySnapshot = await getDocs(productsQuery);
+        const products = querySnapshot.docs.map(doc => ({
+          docId: doc.id,
+          ...calculateFinalPrice(doc.data())
+        }));
+
+        cache.categoryProducts[category_id] = {
+          data: products,
+          timestamp: now
         };
 
-        res.status(200).json(product);
+        res.status(200).json(products);
+        return;
       } else {
-        // All products cache logic
+        // All products with caching
         if (cache.allProducts.data && now - cache.allProducts.timestamp < cache.ttl) {
           res.status(200).json(cache.allProducts.data);
           return;
         }
-
         const querySnapshot = await getDocs(collection(db, "products"));
         const products = querySnapshot.docs.map(doc => ({
           docId: doc.id,
@@ -171,8 +192,8 @@ export default async function handler(req, res) {
         };
 
         res.status(200).json(products);
+        return;
       }
-      return;
     }
 
     // --- Method Not Allowed ---
